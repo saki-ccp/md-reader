@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/ICON.png" alt="md-reader icon" width="120" />
+
 # md-reader
 
 一个面向 Android 平台的本地文档与电子书阅读器，适用于 PDF、Markdown、EPUB 及常见文本类文件的浏览与阅读。
