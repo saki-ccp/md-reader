@@ -1,0 +1,135 @@
+/*
+ * Episteme Reader - A native Android document reader.
+ * Copyright (C) 2026 Episteme
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * mail: epistemereader@gmail.com
+ */
+// MainScreen.kt
+package com.aryan.reader
+
+import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
+import androidx.annotation.OptIn
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.util.UnstableApi
+import androidx.navigation.NavHostController
+
+sealed class BottomBarScreen(val route: String, val stringResId: Int, val iconResId: Int) {
+    object Home : BottomBarScreen("home", R.string.nav_home, R.drawable.home)
+    object Library : BottomBarScreen("library", R.string.nav_library, R.drawable.library_books)
+}
+
+private val bottomBarItems = listOf(
+    BottomBarScreen.Home,
+    BottomBarScreen.Library,
+)
+
+@OptIn(UnstableApi::class)
+@Composable
+fun MainScreen(
+    viewModel: MainViewModel,
+    windowSizeClass: WindowSizeClass,
+    navController: NavHostController
+) {
+    val context = LocalContext.current
+
+    SideEffect {
+        val activity = context as? ComponentActivity
+        activity?.enableEdgeToEdge()
+    }
+
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val viewingShelfName = uiState.viewingShelfId
+
+    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
+        if (viewingShelfName != null) {
+            ShelfScreen(viewModel = viewModel)
+        } else {
+            val selectedPage = uiState.mainScreenStartPage.coerceIn(0, bottomBarItems.lastIndex)
+
+            Scaffold(
+                containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+                bottomBar = {
+                    NavigationBar {
+                        bottomBarItems.forEachIndexed { index, screen ->
+                            NavigationBarItem(
+                                icon = { Icon(painterResource(id = screen.iconResId), contentDescription = stringResource(screen.stringResId)) },
+                                label = { Text(stringResource(screen.stringResId)) },
+                                selected = selectedPage == index,
+                                onClick = {
+                                    ReaderPerfLog.d("MainPager click page=$index route=${screen.route}")
+                                    if (selectedPage != index) {
+                                        val animStart = ReaderPerfLog.nowNanos()
+                                        viewModel.setMainScreenPage(index)
+                                        ReaderPerfLog.d(
+                                            "MainPager settled page=$index elapsed=${ReaderPerfLog.elapsedMs(animStart)}ms"
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            ) { innerPadding ->
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    when (selectedPage) {
+                        0 -> HomeScreen(
+                            viewModel = viewModel,
+                            windowSizeClass = windowSizeClass,
+                            navController = navController
+                        )
+                        1 -> LibraryScreen(viewModel = viewModel)
+                    }
+                }
+            }
+        }
+
+        if (uiState.showTagSelectionDialogFor.isNotEmpty()) {
+            TagSelectionBottomSheet(
+                allTags = uiState.allTags,
+                selectedBookIds = uiState.showTagSelectionDialogFor,
+                booksWithTags = uiState.rawLibraryFiles,
+                onCreateAndAssign = { name ->
+                    viewModel.createAndAssignTag(name, uiState.showTagSelectionDialogFor)
+                },
+                onToggleTag = { tagId, assign ->
+                    viewModel.toggleTagForBooks(tagId, uiState.showTagSelectionDialogFor, assign)
+                },
+                onDismiss = viewModel::closeTagSelection
+            )
+        }
+    }
+}

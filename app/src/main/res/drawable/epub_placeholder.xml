@@ -1,0 +1,47 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="276dp"
+    android:viewportWidth="128"
+    android:viewportHeight="176">
+
+    <!-- Soft shadow for depth -->
+    <path
+        android:fillColor="#1A000000"
+        android:pathData="M24,20 L106,20 Q112,20 112,26 L112,162 Q112,168 106,168 L24,168 Q18,168 18,162 L18,26 Q18,20 24,20 Z"/>
+
+    <!-- Book cover with rounded corners -->
+    <path
+        android:fillColor="#E62A2D35"
+        android:pathData="M22,14 L104,14 Q110,14 110,20 L110,158 Q110,164 104,164 L22,164 Q16,164 16,158 L16,20 Q16,14 22,14 Z"/>
+
+    <!-- Spine highlight on the left -->
+    <path
+        android:fillColor="#1FFFFFFF"
+        android:pathData="M16,20 Q16,14 22,14 L28,14 L28,164 L22,164 Q16,164 16,158 Z"/>
+
+    <!-- Page edge subtle line on the right -->
+    <path
+        android:fillColor="#14FFFFFF"
+        android:pathData="M105,18 L110,18 L110,160 L105,160 Z"/>
+
+    <!-- Title line 1 -->
+    <path
+        android:fillColor="#E6FFFFFF"
+        android:pathData="M40,46 L94,46 Q95,46 95,47 L95,51 Q95,52 94,52 L40,52 Q39,52 39,51 L39,47 Q39,46 40,46 Z"/>
+
+    <!-- Title line 2 (shorter) -->
+    <path
+        android:fillColor="#99FFFFFF"
+        android:pathData="M40,60 L80,60 Q81,60 81,61 L81,64 Q81,65 80,65 L40,65 Q39,65 39,64 L39,61 Q39,60 40,60 Z"/>
+
+    <!-- Decorative content lines -->
+    <path
+        android:fillColor="#33FFFFFF"
+        android:pathData="M40,108 L94,108 L94,110 L40,110 Z M40,116 L88,116 L88,118 L40,118 Z M40,124 L92,124 L92,126 L40,126 Z M40,132 L82,132 L82,134 L40,134 Z"/>
+
+    <!-- Bottom decorative emblem -->
+    <path
+        android:fillColor="#4DFFFFFF"
+        android:pathData="M58,148 L70,148 Q71,148 71,149 L71,153 Q71,154 70,154 L58,154 Q57,154 57,153 L57,149 Q57,148 58,148 Z"/>
+
+</vector>

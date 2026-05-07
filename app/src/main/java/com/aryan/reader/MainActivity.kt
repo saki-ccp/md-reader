@@ -1,0 +1,169 @@
+/*
+ * Episteme Reader - A native Android document reader.
+ * Copyright (C) 2026 Episteme
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * mail: epistemereader@gmail.com
+ */
+package com.aryan.reader
+
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.webkit.WebView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.annotation.RequiresApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.rememberAsyncImagePainter
+import androidx.lifecycle.lifecycleScope
+import androidx.navigation.compose.rememberNavController
+import com.aryan.reader.data.PlatformFeaturesRepository
+import com.aryan.reader.ui.theme.AppTheme
+import kotlinx.coroutines.launch
+import timber.log.Timber
+import androidx.compose.runtime.getValue
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.util.UnstableApi
+
+@UnstableApi
+class MainActivity : AppCompatActivity() {
+
+    private val viewModel: MainViewModel by viewModels()
+    private lateinit var platformFeaturesRepository: PlatformFeaturesRepository
+
+    private val updateLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode != RESULT_OK) {
+            Timber.e("Update flow failed! Result code: ${result.resultCode}")
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
+        enableEdgeToEdge()
+        super.onCreate(savedInstanceState)
+
+        platformFeaturesRepository = PlatformFeaturesRepository(this)
+
+        lifecycleScope.launch {
+            viewModel.reviewRequestEvent.collect {
+                platformFeaturesRepository.requestReview(this@MainActivity)
+            }
+        }
+
+        if (savedInstanceState == null) {
+            handleIntent(intent)
+        }
+
+        lifecycleScope.launch {
+            platformFeaturesRepository.checkForUpdates(this@MainActivity, updateLauncher)
+        }
+
+        setContent {
+            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+            val darkTheme = when (uiState.appThemeMode) {
+                AppThemeMode.LIGHT -> false
+                AppThemeMode.DARK -> true
+                AppThemeMode.SYSTEM -> isSystemInDarkTheme()
+            }
+
+            val textDimFactor = if (darkTheme) uiState.appTextDimFactorDark else uiState.appTextDimFactorLight
+
+            AppTheme(
+                darkTheme = darkTheme,
+                dynamicColor = false,
+                seedColor = uiState.appSeedColor,
+                contrastLevel = uiState.appContrastOption.value,
+                textDimFactor = textDimFactor
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // 1) 底层：始终铺一层主题背景色
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {}
+
+                    // 2) 中层：用户自定义背景图（可选，alpha 决定透出多少）
+                    val bgUri = uiState.appBackgroundUri
+                    if (!bgUri.isNullOrBlank()) {
+                        val ctx = LocalContext.current
+                        val painter = rememberAsyncImagePainter(
+                            model = coil.request.ImageRequest.Builder(ctx)
+                                .data(bgUri)
+                                .crossfade(true)
+                                .build()
+                        )
+                        Image(
+                            painter = painter,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .alpha(uiState.appBackgroundAlpha)
+                        )
+                    }
+
+                    // 3) 顶层：实际界面（背景透明，让下面的图片透出）
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = androidx.compose.ui.graphics.Color.Transparent
+                    ) {
+                        val windowSizeClass = calculateWindowSizeClass(this@MainActivity)
+                        val navController = rememberNavController()
+                        AppNavigation(
+                            navController = navController,
+                            windowSizeClass = windowSizeClass,
+                            viewModel = viewModel
+                        )
+                    }
+                }
+            }
+        }
+        WebView.setWebContentsDebuggingEnabled(true)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW && intent.data != null) {
+            Timber.d("Received VIEW intent with URI: ${intent.data}")
+            val uri = intent.data!!
+            viewModel.onFileSelected(uri, isFromRecent = false, isExternalIntent = true)
+        }
+    }
+}

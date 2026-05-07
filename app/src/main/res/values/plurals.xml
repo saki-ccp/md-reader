@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown on book cards and in various dialogs. %1$d = number of books. -->
+    <plurals name="book_count">
+        <item quantity="one">%1$d book</item>
+        <item quantity="other">%1$d books</item>
+    </plurals>
+
+    <!-- Word-only plural (no number prefix) used in sentences. Example: "remove 3 books from shelf". -->
+    <plurals name="book_word">
+        <item quantity="one">book</item>
+        <item quantity="other">books</item>
+    </plurals>
+
+    <!-- Shown when deleting multiple shelves. %1$d = number of shelves. -->
+    <plurals name="shelf_count">
+        <item quantity="one">%1$d shelf</item>
+        <item quantity="other">%1$d shelves</item>
+    </plurals>
+
+    <!-- Shown in the search results summary bar. %1$d = total number of results found. -->
+    <plurals name="search_results_count">
+        <item quantity="one">%1$d result found</item>
+        <item quantity="other">%1$d results found</item>
+    </plurals>
+
+    <!-- Shown in the PDF search results summary bar. %1$d = total number of matches found. -->
+    <plurals name="search_matches_count">
+        <item quantity="one">%1$d match found</item>
+        <item quantity="other">%1$d matches found</item>
+    </plurals>
+
+    <plurals name="dialog_delete_permanently">
+        <item quantity="one">Delete File Permanently</item>
+        <item quantity="other">Delete Files Permanently</item>
+    </plurals>
+
+    <!-- %1$d = number of selected files to permanently delete. -->
+    <plurals name="dialog_permanently_delete_desc">
+        <item quantity="one">Do you want to permanently delete %1$d selected file from your device? This action cannot be undone.</item>
+        <item quantity="other">Do you want to permanently delete %1$d selected files from your device? This action cannot be undone.</item>
+    </plurals>
+
+    <!-- %1$d = number of selected files to remove from the recents list. -->
+    <plurals name="dialog_remove_recents_desc">
+        <item quantity="one">Do you want to remove %1$d selected file from the recent files list? It will reappear if you open it again from the library.</item>
+        <item quantity="other">Do you want to remove %1$d selected files from the recent files list? It will reappear if you open it again from the library.</item>
+    </plurals>
+
+    <!-- Confirmation dialog. %1$d = count of books; %2$s = shelf name. -->
+    <plurals name="dialog_remove_from_shelf_desc">
+        <item quantity="one">Are you sure you want to remove %1$d book from the \'%2$s\' shelf? The book will remain in your library and appear under Unshelved.</item>
+        <item quantity="other">Are you sure you want to remove %1$d books from the \'%2$s\' shelf? The books will remain in your library and appear under Unshelved.</item>
+    </plurals>
+
+    <!-- %1$d = number of books removed from the library. -->
+    <plurals name="banner_books_removed_library">
+        <item quantity="one">%1$d book removed from library.</item>
+        <item quantity="other">%1$d books removed from library.</item>
+    </plurals>
+
+    <!-- Word count for folders shown in shelf subtitles. %1$d = number of folders. -->
+    <plurals name="folder_count">
+        <item quantity="one">%1$d folder</item>
+        <item quantity="other">%1$d folders</item>
+    </plurals>
+
+    <!-- Word count for tags shown in filter chips. %1$d = number of tags. -->
+    <plurals name="tag_count">
+        <item quantity="one">%1$d tag</item>
+        <item quantity="other">%1$d tags</item>
+    </plurals>
+
+    <!-- Parenthetical cache chunk count in TTS cache entries. %1$d = number of cached audio chunks. -->
+    <plurals name="tts_cache_chunk_count_parenthetical">
+        <item quantity="one">(%1$d chunk)</item>
+        <item quantity="other">(%1$d chunks)</item>
+    </plurals>
+</resources>

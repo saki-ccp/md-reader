@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_cancel">cancelar</string>
+    <string name="action_save">salvar</string>
+    <string name="action_delete">deletar</string>
+    <string name="action_remove">remover</string>
+    <string name="action_ok">ok</string>
+    <string name="action_close">fechar</string>
+    <string name="action_add">adicionar</string>
+    <string name="action_rename">renomear</string>
+    <string name="action_back">voltar</string>
+    <string name="action_search">pesquisar</string>
+    <string name="action_clear">limpar</string>
+    <string name="action_apply">aplicar</string>
+    <string name="tab_free">Livre</string>
+    <string name="active_tabs">Abas ativas</string>
+    <string name="close_tab">Fechar aba</string>
+    <string name="close_all_tabs">Fechar todas as abas</string>
+    <string name="dialog_close_all_tabs">Fechar todas as abas?</string>
+    <string name="dialog_close_all_tabs_desc">Tem certeza que deseja fechar todas as abas ativas?</string>
+    <string name="legal_agreement_full">%1$s você concorda com nosso %2$s e reconhece que leu nosso %3$s.</string>
+    <string name="legal_terms_of_service">Termos de Serviço</string>
+    <string name="legal_privacy_policy">Política de Privacidade</string>
+    <string name="legal_licenses">Licenças</string>
+    <string name="items_selected_count">%1$d selecionado</string>
+    <string name="clear_selection">Limpar seleção</string>
+    <string name="pin_unpin">Fixar/Desfixar</string>
+    <string name="internal_storage">Armazenamento Interno</string>
+    <string name="clear_cloud_data_desc">Tem certeza de que deseja excluir permanentemente todos os seus dados de livro da nuvem? Isso também irá limpar sua biblioteca local para evitar a reinscrição. Esta ação não pode ser desfeita.</string>
+</resources>

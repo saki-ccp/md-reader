@@ -1,0 +1,2859 @@
+// epub_reader.js
+(function () {
+    function applyMobileOptimizationsAndSelection() {
+        var viewport = document.querySelector("meta[name=viewport]");
+
+        if (!viewport) {
+            viewport = document.createElement("meta");
+            viewport.setAttribute("name", "viewport");
+            document.head.appendChild(viewport);
+        }
+
+        viewport.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes");
+
+        var style = document.getElementById("customMobileStyle");
+
+        if (!style) {
+            style = document.createElement("style");
+            style.setAttribute("id", "customMobileStyle");
+            document.head.appendChild(style);
+        }
+
+        // CHANGED: Colors now use rgba() with 0.5 opacity for blending
+        style.innerHTML = ` html {
+                margin: 0; padding: 0; height: 100%; overflow-y: scroll;
+            }
+
+            body {
+                margin: 0; padding: 0px !important;
+                word-wrap: break-word; overflow-wrap: break-word;
+                word-break: break-word; -webkit-text-size-adjust: 100%;
+                text-rendering: optimizeLegibility; -webkit-user-select: none;
+                -moz-user-select: none; -ms-user-select: none; user-select: none;
+                scroll-behavior: auto !important;
+            }
+
+            #content-container {
+                will-change: transform;
+                transition: none !important;
+            }
+
+            p, div, li, td, th, span {
+                font-size: 1em; line-height: inherit;
+            }
+
+            p, ul, ol {
+                margin-top: 0.5em; margin-bottom: 0.5em;
+            }
+
+            li {
+                margin-bottom: 0.25em;
+            }
+
+            h1, h2, h3, h4, h5, h6 {
+                line-height: 1.3; margin-top: 1em; margin-bottom: 0.5em; font-weight: bold;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            h2 {
+                font-size: 1.75em;
+            }
+
+            h3 {
+                font-size: 1.5em;
+            }
+
+            h4 {
+                font-size: 1.25em;
+            }
+
+            h5 {
+                font-size: 1.1em;
+            }
+
+            h6 {
+                font-size: 1em;
+            }
+
+            img, svg, video, canvas {
+                max-width: 100%; width: auto; height: auto; display: block; margin-left: auto; margin-right: auto; background-color: transparent; object-fit: contain;
+            }
+
+            figure img {
+                height: auto !important;
+            }
+
+            div:has(> img:only-child), p:has(> img:only-child) {
+                height: auto !important; line-height: normal !important;
+            }
+
+            .tts-highlight {
+                background-color: rgba(255, 236, 179, 0.8);
+                /* Semi-transparent Gold */
+                color: black !important;
+                padding: 0.1em 0;
+                border-radius: 3px;
+            }
+
+            html.dark-theme span.tts-highlight {
+                background-color: rgba(160, 140, 90, 0.8) !important;
+                color: #E0E0E0 !important;
+            }
+
+            /* User Highlights */
+            .user-highlight-yellow {
+                    background-color: rgba(251, 192, 45, 0.4); cursor: pointer;
+                }
+                .user-highlight-green {
+                    background-color: rgba(56, 142, 60, 0.4); cursor: pointer;
+                }
+                .user-highlight-blue {
+                    background-color: rgba(25, 118, 210, 0.4); cursor: pointer;
+                }
+                .user-highlight-red {
+                    background-color: rgba(211, 47, 47, 0.4); cursor: pointer;
+                }
+                .user-highlight-purple {
+                    background-color: rgba(123, 31, 162, 0.4); cursor: pointer;
+                }
+                .user-highlight-orange {
+                    background-color: rgba(245, 124, 0, 0.4); cursor: pointer;
+                }
+                .user-highlight-cyan {
+                    background-color: rgba(0, 151, 167, 0.4); cursor: pointer;
+                }
+                .user-highlight-magenta {
+                    background-color: rgba(194, 24, 91, 0.4); cursor: pointer;
+                }
+                .user-highlight-lime {
+                    background-color: rgba(175, 180, 43, 0.4); cursor: pointer;
+                }
+                .user-highlight-pink {
+                    background-color: rgba(233, 30, 99, 0.4); cursor: pointer;
+                }
+                .user-highlight-teal {
+                    background-color: rgba(0, 121, 107, 0.4); cursor: pointer;
+                }
+                .user-highlight-indigo {
+                    background-color: rgba(48, 63, 159, 0.4); cursor: pointer;
+                }
+                .user-highlight-black {
+                    background-color: rgba(0, 0, 0, 0.4); cursor: pointer;
+                }
+                .user-highlight-white {
+                    background-color: rgba(255, 255, 255, 0.4); cursor: pointer;
+                    /* Optional: slight border so white is visible on white paper */
+                    border-bottom: 1px solid rgba(0,0,0,0.1);
+                }
+
+                /* Active State (Darkens slightly when pressed) */
+                span[class^="user-highlight-"]:active {
+                    filter: brightness(0.9);
+                }
+
+            mark.search-highlight {
+                background-color: rgba(160, 207, 241, 0.8);
+                color: black;
+                border-radius: 3px;
+            }
+
+            html.dark-theme mark.search-highlight {
+                background-color: rgba(0, 90, 156, 0.8);
+                color: #E0E0E0;
+            }
+
+            `;
+
+        window.setTextSelectionEnabled = function (enabled) {
+            var selectStyle = enabled ? "auto" : "none";
+
+            if (document.body) {
+                document.body.style.webkitUserSelect = selectStyle;
+                document.body.style.mozUserSelect = selectStyle;
+                document.body.style.msUserSelect = selectStyle;
+                document.body.style.userSelect = selectStyle;
+            }
+        };
+
+        window.setTextSelectionEnabled(true);
+    }
+
+    window.VIEWPORT_PADDING_TOP = 0;
+    window.VIEWPORT_PADDING_BOTTOM = 0;
+
+    window.setViewportPadding = function (top, bottom) {
+        window.VIEWPORT_PADDING_TOP = top || 0;
+        window.VIEWPORT_PADDING_BOTTOM = bottom || 0;
+    };
+
+    window.applyReaderTheme = function (isDark, bgHex, textHex, textureBase64, textureAlpha) {
+        var styleId = "readerThemeStyle";
+        var themeStyleElement = document.getElementById(styleId);
+
+        if (!themeStyleElement) {
+            themeStyleElement = document.createElement("style");
+            themeStyleElement.setAttribute("id", styleId);
+            document.head.appendChild(themeStyleElement);
+        }
+
+        var themeClassName = isDark ? "dark-theme" : "light-theme";
+        var oppositeThemeClassName = isDark ? "light-theme" : "dark-theme";
+        document.documentElement.classList.remove(oppositeThemeClassName);
+        document.documentElement.classList.add(themeClassName);
+
+        var effectiveBg = bgHex || (isDark ? '#121212' : '#FFFFFF');
+        var effectiveText = textHex || (isDark ? '#E0E0E0' : '#000000');
+
+        var effectiveTextureAlpha = Math.max(0, Math.min(1, textureAlpha == null ? 0.55 : textureAlpha));
+        var bgMatch = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(effectiveBg);
+        var bgRgb = bgMatch
+            ? `${parseInt(bgMatch[1], 16)}, ${parseInt(bgMatch[2], 16)}, ${parseInt(bgMatch[3], 16)}`
+            : (isDark ? '18, 18, 18' : '255, 255, 255');
+
+        var textureCss = textureBase64
+            ? `background-image: linear-gradient(rgba(${bgRgb},${1 - effectiveTextureAlpha}), rgba(${bgRgb},${1 - effectiveTextureAlpha})), url('${textureBase64}'); background-repeat: repeat, repeat; background-blend-mode: normal, normal;`
+            : 'background-image: none;';
+
+        var css = `
+            :root {
+                --reader-bg: ${effectiveBg};
+                --reader-text: ${effectiveText};
+            }
+            html.${themeClassName}, html.${themeClassName} body {
+                background-color: var(--reader-bg) !important;
+                color: var(--reader-text) !important;
+                ${textureCss}
+            }
+
+            html.${themeClassName} a {
+                color: ${isDark ? '#BB86FC' : '#1A0DAB'} !important;
+            }
+
+            html.${themeClassName} a p,
+            html.${themeClassName} a div,
+            html.${themeClassName} a span,
+            html.${themeClassName} a li,
+            html.${themeClassName} a h1,
+            html.${themeClassName} a h2,
+            html.${themeClassName} a h3,
+            html.${themeClassName} a h4,
+            html.${themeClassName} a h5,
+            html.${themeClassName} a h6 {
+                color: var(--reader-text) !important;
+                background-color: transparent !important;
+            }
+
+            html.${themeClassName} blockquote, html.${themeClassName} pre,
+            html.${themeClassName} figcaption, html.${themeClassName} caption,
+            html.${themeClassName} label, html.${themeClassName} dt, html.${themeClassName} dd {
+                color: inherit !important;
+                background-color: transparent !important;
+            }
+
+            html.${themeClassName} hr {
+                border-color: ${isDark ? '#444444' : '#CCCCCC'} !important;
+                background-color: ${isDark ? '#444444' : '#CCCCCC'} !important;
+            }
+
+            html.${themeClassName} table, html.${themeClassName} tr, html.${themeClassName} td, html.${themeClassName} th {
+                background-color: transparent !important;
+                border-color: ${isDark ? '#555' : '#CCC'} !important;
+            }
+        `;
+
+        themeStyleElement.innerHTML = css;
+
+        if (window.adjustInlineColorsForContrast) {
+             window.adjustInlineColorsForContrast(isDark, effectiveBg);
+        }
+    };
+
+    function getLuminance(r, g, b) {
+        var a = [r, g, b].map(function (v) {
+            v /= 255;
+            return v <= 0.03928
+                ? v / 12.92
+                : Math.pow((v + 0.055) / 1.055, 2.4);
+        });
+        return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+    }
+
+    function hexToRgb(hex) {
+        var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : {r:255,g:255,b:255};
+    }
+
+    function rgbStringToRgb(rgbStr) {
+        var parts = rgbStr.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+        if (parts) {
+            return { r: parseInt(parts[1]), g: parseInt(parts[2]), b: parseInt(parts[3]) };
+        }
+        return null;
+    }
+
+    function rgbToHsl(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        var max = Math.max(r, g, b), min = Math.min(r, g, b);
+        var h, s, l = (max + min) / 2;
+
+        if(max == min){
+            h = s = 0; // achromatic
+        }else{
+            var d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch(max){
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+        }
+        return[h, s, l];
+    }
+
+    function hslToRgb(h, s, l) {
+        var r, g, b;
+        if(s == 0){
+            r = g = b = l; // achromatic
+        }else{
+            var hue2rgb = function hue2rgb(p, q, t){
+                if(t < 0) t += 1;
+                if(t > 1) t -= 1;
+                if(t < 1/6) return p + (q - p) * 6 * t;
+                if(t < 1/2) return q;
+                if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+            }
+            var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            var p = 2 * l - q;
+            r = hue2rgb(p, q, h + 1/3);
+            g = hue2rgb(p, q, h);
+            b = hue2rgb(p, q, h - 1/3);
+        }
+        return[Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+    }
+
+    window.adjustInlineColorsForContrast = function(isDark, bgHex) {
+        var bgRgb = hexToRgb(bgHex);
+        var bgLum = getLuminance(bgRgb.r, bgRgb.g, bgRgb.b);
+
+        var elements = document.querySelectorAll('[style*="color"]');
+        elements.forEach(function(el) {
+            var style = window.getComputedStyle(el);
+            var colorStr = style.color;
+            var rgb = rgbStringToRgb(colorStr);
+            if (rgb) {
+                var lum = getLuminance(rgb.r, rgb.g, rgb.b);
+                var l1 = Math.max(bgLum, lum);
+                var l2 = Math.min(bgLum, lum);
+                var contrast = (l1 + 0.05) / (l2 + 0.05);
+
+                if (contrast < 4.5) {
+                    var hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+                    if (bgLum < 0.5) {
+                        hsl[2] = Math.max(hsl[2], 0.7); // Lighten
+                    } else {
+                        hsl[2] = Math.min(hsl[2], 0.3); // Darken
+                    }
+                    var newRgb = hslToRgb(hsl[0], hsl[1], hsl[2]);
+                    el.style.setProperty('color', `rgb(${newRgb[0]}, ${newRgb[1]}, ${newRgb[2]})`, 'important');
+                }
+            }
+        });
+
+        var bgElements = document.querySelectorAll('[style*="background"]');
+        bgElements.forEach(function(el) {
+            var style = window.getComputedStyle(el);
+            var bgStr = style.backgroundColor;
+            if (bgStr && bgStr !== 'rgba(0, 0, 0, 0)' && bgStr !== 'transparent') {
+                var rgb = rgbStringToRgb(bgStr);
+                if (rgb) {
+                    var lum = getLuminance(rgb.r, rgb.g, rgb.b);
+                    if (isDark && lum > 0.5) {
+                        el.style.setProperty('background-color', 'transparent', 'important');
+                    } else if (!isDark && lum < 0.2) {
+                        el.style.setProperty('background-color', 'transparent', 'important');
+                    }
+                }
+            }
+        });
+    };
+
+    function handleHighlightInteraction(e) {
+        if (window.getSelection && window.getSelection().toString().trim().length > 0) {
+            return false;
+        }
+
+        var target = e.target;
+        var highlightSpan = null;
+
+        while (target && target !== document.body) {
+            var isHighlight = false;
+            if (target.nodeType === Node.ELEMENT_NODE && target.classList) {
+                for (var i = 0; i < target.classList.length; i++) {
+                    if (target.classList[i].startsWith("user-highlight-")) {
+                        isHighlight = true;
+                        break;
+                    }
+                }
+            }
+
+            if (isHighlight) {
+                highlightSpan = target;
+                break;
+            }
+
+            target = target.parentNode;
+        }
+
+        if (highlightSpan) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+
+            if (window.getSelection) {
+                window.getSelection().removeAllRanges();
+            }
+
+            var text = highlightSpan.textContent;
+            var rect = highlightSpan.getBoundingClientRect();
+            var rawCfi = highlightSpan.getAttribute("data-cfi");
+
+            if (!rawCfi) {
+                var cfiResult = window.getCfiPathForElement(highlightSpan, 0);
+                rawCfi = cfiResult.cfi;
+            }
+
+            var cfiToReport = rawCfi;
+
+            if (rawCfi && rawCfi.includes(";;")) {
+                var cfiParts = rawCfi.split(";;");
+                cfiToReport = cfiParts[cfiParts.length - 1];
+            }
+
+            if (window.HighlightBridge) {
+                window.HighlightBridge.onHighlightClicked(cfiToReport, text, rect.left, rect.top, rect.right, rect.bottom);
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    function getFootnoteContent(targetId) {
+        console.log("FootnoteDiag: Searching for footnote content with id: '" + targetId + "'");
+
+        var el = document.getElementById(targetId);
+        if (el) {
+            console.log("FootnoteDiag: Found element directly in DOM.");
+            return el.innerHTML;
+        }
+
+        console.log("FootnoteDiag: Element not in DOM, checking virtualized chunks.");
+        if (window.virtualization && window.virtualization.chunksData) {
+            for (var i = 0; i < window.virtualization.chunksData.length; i++) {
+                var chunkHtml = window.virtualization.chunksData[i];
+                if (chunkHtml && chunkHtml.indexOf('id="' + targetId + '"') !== -1) {
+                    console.log("FootnoteDiag: Found potential id match in chunk " + i);
+                    var tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = chunkHtml;
+                    var found = tempDiv.querySelector('#' + targetId);
+                    if (found) {
+                        console.log("FootnoteDiag: Successfully extracted note from chunk " + i + ".");
+                        return found.innerHTML;
+                    }
+                }
+            }
+        }
+        console.log("FootnoteDiag: Footnote content not found anywhere.");
+        return null;
+    }
+
+    // 1. Handle Taps (Click)
+    document.addEventListener("click", function (e) {
+        if (handleHighlightInteraction(e)) return;
+
+        var target = e.target;
+        var anchor = target.closest('a');
+
+        if (anchor) {
+            var href = anchor.getAttribute('href');
+            var epubType = anchor.getAttribute('epub:type');
+            var linkText = (anchor.textContent || '').trim().substring(0, 80);
+
+            console.log("LINK_NAV: [JS-CLICK] href='" + href + "', epub:type='" + epubType + "', label='" + linkText + "'");
+
+            if (window.LinkNavBridge && window.LinkNavBridge.onLinkClicked) {
+                window.LinkNavBridge.onLinkClicked(href || '', epubType || '', linkText);
+            }
+
+            console.log("FootnoteDiag: Link clicked. href: '" + href + "', epub:type: '" + epubType + "'");
+
+           if ((href && href.startsWith('#')) || epubType === 'noteref') {
+               console.log("LINK_NAV: [JS-CLASSIFY] type=FRAGMENT_OR_FOOTNOTE, href='" + href + "'");
+                var targetId = href ? href.substring(1) : null;
+                console.log("FootnoteDiag: Extracted targetId: '" + targetId + "'");
+
+                if (targetId) {
+                    var content = getFootnoteContent(targetId);
+                    if (content && window.FootnoteBridge) {
+                        console.log("FootnoteDiag: Content extracted, sending to Kotlin Bridge.");
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                        window.FootnoteBridge.onFootnoteRequested(content);
+                        return;
+                    } else if (!content) {
+                        console.log("FootnoteDiag: Failed to get content. Link might just be a regular anchor.");
+                    } else if (!window.FootnoteBridge) {
+                        console.log("FootnoteDiag: window.FootnoteBridge is undefined!");
+                    }
+                }
+            }
+        } else {
+            console.log("LINK_NAV: [JS-NO-ANCHOR] No <a> tag found in click target hierarchy");
+        }
+    }, true);
+
+    function getReaderImageElements() {
+        return Array.prototype.slice.call(document.querySelectorAll("img, svg, video, canvas, image"));
+    }
+
+    function rememberReaderImageAnchors() {
+        getReaderImageElements().forEach(function (image) {
+            if (image.getAttribute("data-reader-image-anchor")) return;
+
+            var parent = image.parentElement || document.body;
+            var imageRect = image.getBoundingClientRect();
+            var parentRect = parent.getBoundingClientRect();
+            var parentWidth = parentRect.width || document.documentElement.clientWidth || window.innerWidth || 0;
+
+            if (!parentWidth || imageRect.width <= 0) {
+                image.setAttribute("data-reader-image-anchor", "center");
+                return;
+            }
+
+            var imageCenter = imageRect.left + imageRect.width / 2;
+            var parentCenter = parentRect.left + parentWidth / 2;
+            var tolerance = Math.max(4, parentWidth * 0.08);
+            var anchor = "center";
+
+            if (Math.abs(imageCenter - parentCenter) <= tolerance || imageRect.width >= parentWidth - 2) {
+                anchor = "center";
+            } else if (imageCenter > parentCenter) {
+                anchor = "right";
+            } else {
+                anchor = "left";
+            }
+
+            image.setAttribute("data-reader-image-anchor", anchor);
+        });
+    }
+
+    function applyReaderImageAnchors() {
+        getReaderImageElements().forEach(function (image) {
+            var anchor = image.getAttribute("data-reader-image-anchor") || "center";
+
+            image.style.setProperty("display", "block", "important");
+            image.style.setProperty("height", "auto", "important");
+            image.style.setProperty("object-fit", "contain", "important");
+
+            if (anchor === "right") {
+                image.style.setProperty("float", "none", "important");
+                image.style.setProperty("margin-left", "auto", "important");
+                image.style.setProperty("margin-right", "0", "important");
+            } else if (anchor === "left") {
+                image.style.setProperty("margin-left", "0", "important");
+                image.style.setProperty("margin-right", "auto", "important");
+            } else {
+                image.style.setProperty("float", "none", "important");
+                image.style.setProperty("margin-left", "auto", "important");
+                image.style.setProperty("margin-right", "auto", "important");
+            }
+        });
+    }
+
+    window.updateReaderStyles = function (fontSizeEm, lineHeight, fontFamily, textAlign, paragraphGap, imageSize, horizontalMargin, verticalMargin) {
+        var logTag = "ReaderFontDiagnosis";
+        console.log(
+            logTag +
+                ": updateReaderStyles called. Size: " +
+                fontSizeEm +
+                ", LineHeight: " +
+                lineHeight +
+                ", Font: '" +
+                fontFamily +
+                  "', Align: '" +
+                  textAlign +
+                  "', Gap: " +
+                  paragraphGap +
+                  ", ImageSize: " +
+                  imageSize +
+                  ", HorizontalMargin: " +
+                  horizontalMargin +
+                  ", VerticalMargin: " +
+                  verticalMargin
+          );
+
+        var dynamicStyleId = "dynamicReaderStyles";
+        var dynamicStyleElement = document.getElementById(dynamicStyleId);
+
+        if (!dynamicStyleElement) {
+            dynamicStyleElement = document.createElement("style");
+            dynamicStyleElement.setAttribute("id", dynamicStyleId);
+            document.head.appendChild(dynamicStyleElement);
+        }
+
+        var newFontSize = parseFloat(fontSizeEm);
+        var newLineHeight = parseFloat(lineHeight);
+        var newGap = parseFloat(paragraphGap);
+        var newImageSize = parseFloat(imageSize);
+        var newHorizontalMargin = parseFloat(horizontalMargin);
+        var newVerticalMargin = parseFloat(verticalMargin);
+
+        if (isNaN(newFontSize) || newFontSize < 0.5 || newFontSize > 5.0) newFontSize = 1.0;
+        if (isNaN(newLineHeight) || newLineHeight < 1.0 || newLineHeight > 3.0) newLineHeight = 1.0;
+        if (isNaN(newGap) || newGap < 0.0 || newGap > 3.0) newGap = 1.0;
+        if (isNaN(newImageSize) || newImageSize < 0.5 || newImageSize > 2.0) newImageSize = 1.0;
+        if (isNaN(newHorizontalMargin) || newHorizontalMargin < 0.0 || newHorizontalMargin > 3.0) newHorizontalMargin = 1.0;
+        if (isNaN(newVerticalMargin) || newVerticalMargin < 0.0 || newVerticalMargin > 3.0) newVerticalMargin = 1.0;
+
+        rememberReaderImageAnchors();
+
+        var fontCss = "";
+        if (fontFamily && fontFamily !== "Original" && fontFamily !== "") {
+            var fallback = "sans-serif";
+            if (fontFamily === "Merriweather" || fontFamily === "Lora") {
+                fallback = "serif";
+            } else if (fontFamily === "Roboto Mono") {
+                fallback = "monospace";
+            }
+            fontCss = `
+            body, p, span, div, li, a, h1, h2, h3, h4, h5, h6, blockquote, td, th {
+                font-family: '${fontFamily}', ${fallback} !important;
+            }
+            `;
+        }
+
+        var alignCss = "";
+        var alignSelector = "body, p, li, div, h1, h2, h3, h4, h5, h6";
+        if (textAlign === "left") {
+            alignCss = alignSelector + " { text-align: left !important; }";
+        } else if (textAlign === "justify") {
+            alignCss = alignSelector + " { text-align: justify !important; -webkit-hyphens: auto !important; hyphens: auto !important; }";
+        }
+
+        var gapCss = "";
+        if (newGap !== 1.0) {
+            gapCss = `
+            body p, body ul, body ol, body blockquote {
+                margin-top: ${newGap}em !important;
+                margin-bottom: ${newGap}em !important;
+            }
+            body li {
+                margin-bottom: ${0.5 * newGap}em !important;
+            }
+            `;
+        }
+
+        var sizeCss = "";
+        if (newFontSize !== 1.0) {
+            sizeCss = `body { font-size: ${newFontSize}em !important; }`;
+        }
+
+        var lineHeightCss = "";
+        if (newLineHeight !== 1.0) {
+            lineHeightCss = `
+            body, p, div, span, li, a, h1, h2, h3, h4, h5, h6, blockquote, td, th {
+                line-height: ${newLineHeight} !important;
+            }
+            `;
+        }
+
+        var horizontalPaddingPx = Math.max(0, 16 * newHorizontalMargin);
+        var verticalPaddingPx = Math.max(0, 16 * newVerticalMargin);
+        var horizontalMarginCss = `
+            body {
+                box-sizing: border-box !important;
+                padding-left: ${horizontalPaddingPx}px !important;
+                padding-right: ${horizontalPaddingPx}px !important;
+                padding-top: ${verticalPaddingPx}px !important;
+                padding-bottom: ${verticalPaddingPx}px !important;
+            }
+        `;
+
+        var imageCss = `
+            :root {
+                --reader-image-size: ${newImageSize};
+            }
+            body img,
+            body svg,
+            body video,
+            body canvas,
+            body image {
+                width: min(100%, calc(100% * var(--reader-image-size))) !important;
+                max-width: 100% !important;
+                height: auto !important;
+                display: block !important;
+                float: none !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                object-fit: contain !important;
+            }
+            body p:has(> img:only-child),
+            body div:has(> img:only-child),
+            body figure {
+                text-align: center !important;
+            }
+        `;
+
+        dynamicStyleElement.innerHTML = [sizeCss, lineHeightCss, fontCss, alignCss, gapCss, imageCss, horizontalMarginCss].join("\n");
+        applyReaderImageAnchors();
+        setTimeout(applyReaderImageAnchors, 80);
+
+        setTimeout(
+            function () {
+                var computedBody = window.getComputedStyle(document.body).fontFamily;
+                console.log(logTag + ": [BODY] Computed font-family: " + computedBody);
+
+                var firstPara = document.querySelector("p");
+                if (firstPara) {
+                    var computedPara = window.getComputedStyle(firstPara).fontFamily;
+                    console.log(logTag + ":[PARAGRAPH] Computed font-family: " + computedPara);
+                }
+
+                if (fontFamily && fontFamily !== "") {
+                    var isCheckAvailable = document.fonts && document.fonts.check;
+                    if (isCheckAvailable) {
+                        var loaded = document.fonts.check("12px '" + fontFamily + "'");
+                        console.log(logTag + ": Font Loading Status -> document.fonts.check('" + fontFamily + "') = " + loaded);
+                    }
+                }
+            },
+            300
+        );
+
+        if (window.triggerInitialScrollStateReport) {
+            window.triggerInitialScrollStateReport();
+        } else if (window.reportScrollState) {
+            setTimeout(window.reportScrollState, 60);
+        }
+    };
+
+    window.TOC_FRAGMENTS = window.TOC_FRAGMENTS || [];
+
+    window.setTocFragments = function (jsonArray) {
+        console.log("FRAG_NAV_DEBUG: window.setTocFragments called with " + jsonArray.length + " items.");
+        window.TOC_FRAGMENTS = jsonArray;
+        // Immediate audit and report
+        window.auditTocFragments();
+        window.reportScrollState();
+    };
+
+    window.reportScrollState = function () {
+        if (typeof PageInfoReporter !== "undefined" && PageInfoReporter.updateScrollState) {
+            var scrollY = Math.round(window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0);
+            var scrollHeight = Math.round(Math.max(document.body.scrollHeight, document.documentElement.scrollHeight));
+            var clientHeight = Math.round(document.documentElement.clientHeight || window.innerHeight || 0);
+
+          if (clientHeight === 0) return;
+
+          var activeFragment = null;
+          var hasFoundVisible = false;
+
+          if (window.TOC_FRAGMENTS && window.TOC_FRAGMENTS.length > 0) {
+                var threshold = window.VIEWPORT_PADDING_TOP + 60;
+
+                for (var i = 0; i < window.TOC_FRAGMENTS.length; i++) {
+                    var id = window.TOC_FRAGMENTS[i];
+                    var el = document.getElementById(id) || document.querySelector('[name="' + id + '"]');
+
+                    if (el) {
+                        hasFoundVisible = true;
+                        var rect = el.getBoundingClientRect();
+
+                        console.log("FRAG_NAV_DEBUG: Checking #" + id + " | rect.top: " + Math.round(rect.top) + " | threshold: " + threshold);
+
+                        if (rect.top <= threshold) {
+                            activeFragment = id;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        if (!hasFoundVisible) {
+                            activeFragment = id;
+                        }
+                    }
+                }
+            }
+
+            // Fallback for the very start of the chapter
+            if (activeFragment === null && scrollY < 50 && window.TOC_FRAGMENTS && window.TOC_FRAGMENTS.length > 0) {
+                activeFragment = window.TOC_FRAGMENTS[0];
+            }
+
+            PageInfoReporter.updateScrollState(scrollY, scrollHeight, clientHeight, activeFragment);
+        }
+
+        window.reportTopChunk();
+    };
+
+    // ADD THIS NEW DIAGNOSTIC FUNCTION
+    window.auditTocFragments = function () {
+        console.log("FRAG_NAV_DEBUG: --- Starting DOM Audit ---");
+
+        if (!window.TOC_FRAGMENTS || window.TOC_FRAGMENTS.length === 0) {
+            console.log("FRAG_NAV_DEBUG: Audit failed - window.TOC_FRAGMENTS is empty.");
+            return;
+        }
+
+        var foundCount = 0;
+
+        window.TOC_FRAGMENTS.forEach((id) => {
+            var el = document.getElementById(id);
+
+            if (el) {
+                foundCount++;
+                console.log("FRAG_NAV_DEBUG: [FOUND] ID: " + id + " | Tag: " + el.tagName + " | OffsetTop: " + el.offsetTop);
+            } else {
+                console.log("FRAG_NAV_DEBUG: [MISSING] ID: " + id + " - Not in DOM.");
+            }
+        });
+        console.log("FRAG_NAV_DEBUG: Audit complete. Found " + foundCount + "/" + window.TOC_FRAGMENTS.length);
+
+        // Also log some random IDs from the DOM to see what's actually there
+        var allWithId = document.querySelectorAll("[id]");
+        console.log(
+            "FRAG_NAV_DEBUG: Sample IDs existing in DOM: " +
+                Array.from(allWithId)
+                    .slice(0, 5)
+                    .map((el) => el.id)
+                    .join(", "),
+        );
+    };
+
+    let scrollThrottleTimeout = null;
+     let lastScrollTime = 0;
+
+     window.addEventListener("scroll", function() {
+         const now = Date.now();
+         if (now - lastScrollTime >= 100) {
+             window.reportScrollState();
+             lastScrollTime = now;
+         } else {
+             if (scrollThrottleTimeout) clearTimeout(scrollThrottleTimeout);
+             scrollThrottleTimeout = setTimeout(function() {
+                 window.reportScrollState();
+                 lastScrollTime = Date.now();
+             }, 100);
+         }
+     }, { passive: true });
+
+     window.addEventListener("resize", window.reportScrollState);
+
+    window.triggerInitialScrollStateReport = function () {
+        var attempts = 0;
+        var maxAttempts = 15;
+
+        function tryReport() {
+            attempts++;
+            if (window.reportScrollState) {
+                window.reportScrollState();
+            }
+
+            if (attempts < maxAttempts) {
+                setTimeout(tryReport, 200);
+            }
+        }
+
+        setTimeout(tryReport, 50);
+    };
+
+    window.scrollToChapterStart = function () {
+        requestAnimationFrame(function () {
+            window.scrollTo(0, 0);
+
+            setTimeout(
+                function () {
+                    window.reportScrollState();
+                },
+
+                100,
+            );
+        });
+    };
+
+    window.scrollToChapterEnd = function () {
+        requestAnimationFrame(function () {
+            var targetScrollY =
+                (document.body.scrollHeight || document.documentElement.scrollHeight) - (window.innerHeight || document.documentElement.clientHeight);
+            if (targetScrollY < 0) targetScrollY = 0;
+            window.scrollTo(0, targetScrollY);
+
+            setTimeout(
+                function () {
+                    window.reportScrollState();
+                },
+
+                100,
+            );
+        });
+    };
+
+    window.scrollToSpecificY = function (yPosition) {
+        if (typeof yPosition === "number" && yPosition >= 0) {
+            window.scrollTo(0, yPosition);
+
+            setTimeout(
+                function () {
+                    window.reportScrollState();
+                },
+
+                100,
+            );
+        } else {
+            setTimeout(
+                function () {
+                    window.reportScrollState();
+                },
+
+                100,
+            );
+        }
+    };
+
+    function initializeReaderContent() {
+        applyMobileOptimizationsAndSelection();
+    }
+
+    if (document.readyState === "complete" || document.readyState === "interactive") {
+        initializeReaderContent();
+    } else {
+        document.addEventListener("DOMContentLoaded", initializeReaderContent);
+    }
+
+    window.CURRENT_SEARCH_QUERY = "";
+
+    window.clearSearchHighlights = function () {
+        window.CURRENT_SEARCH_QUERY = "";
+        document.querySelectorAll("mark.search-highlight").forEach(function (el) {
+            var parent = el.parentNode;
+            if (parent) {
+                while (el.firstChild) {
+                    parent.insertBefore(el.firstChild, el);
+                }
+                parent.removeChild(el);
+                parent.normalize();
+            }
+        });
+        return "JS: Search highlights cleared.";
+    };
+
+    window.highlightAllOccurrences = function (query) {
+        window.clearSearchHighlights();
+        window.CURRENT_SEARCH_QUERY = query;
+
+        if (!query || query.length < 2) return "JS: Query too short for highlighting.";
+
+        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+        var nodesToModify =[];
+
+        while ((node = walker.nextNode())) {
+            if (node.nodeValue.toLowerCase().includes(query.toLowerCase())) {
+                nodesToModify.push(node);
+            }
+        }
+
+        var regex = new RegExp("(" + query.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&") + ")", "gi");
+
+        nodesToModify.forEach(function (textNode) {
+            if (textNode.parentNode && textNode.parentNode.tagName !== "SCRIPT" && textNode.parentNode.tagName !== "STYLE") {
+                var tempDiv = document.createElement("div");
+                tempDiv.innerHTML = textNode.nodeValue.replace(regex, '<mark class="search-highlight">$1</mark>');
+
+                var parent = textNode.parentNode;
+                while (tempDiv.firstChild) {
+                    parent.insertBefore(tempDiv.firstChild, textNode);
+                }
+                parent.removeChild(textNode);
+            }
+        });
+
+        return "JS: Highlighted " + document.querySelectorAll("mark.search-highlight").length + " occurrences.";
+    };
+
+    window.scrollToChunkOccurrence = function (chunkIndex, relativeIndex) {
+        console.log("NavDiag: scrollToChunkOccurrence chunk=" + chunkIndex + ", relativeIdx=" + relativeIndex);
+        var chunkDiv = document.querySelector(`.chunk-container[data-chunk-index='${chunkIndex}']`);
+
+        if (chunkDiv) {
+            let wasEmpty = false;
+
+            if (chunkDiv.innerHTML === "" && window.virtualization && window.virtualization.chunksData[chunkIndex]) {
+                console.log("NavDiag: Chunk was empty, restoring content before scrolling.");
+                chunkDiv.innerHTML = window.virtualization.chunksData[chunkIndex];
+                chunkDiv.style.height = "";
+                wasEmpty = true;
+            }
+
+            var highlights = chunkDiv.querySelectorAll("mark.search-highlight");
+
+            if ((wasEmpty || highlights.length === 0) && window.CURRENT_SEARCH_QUERY) {
+                window.highlightAllOccurrences(window.CURRENT_SEARCH_QUERY);
+                highlights = chunkDiv.querySelectorAll("mark.search-highlight");
+            }
+
+            if (highlights && highlights.length > 0) {
+                var targetIdx = (relativeIndex >= 0 && relativeIndex < highlights.length) ? relativeIndex : 0;
+                highlights[targetIdx].scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+                return "JS: Scrolled to relative occurrence " + targetIdx + " in chunk " + chunkIndex;
+            } else {
+                chunkDiv.scrollIntoView({ behavior: "auto", block: "center" });
+                return "JS: No highlights in chunk, scrolled to chunk center.";
+            }
+        }
+        return "JS: Chunk " + chunkIndex + " not found.";
+    };
+
+    window.removeHighlight = function () {
+        var highlightNode;
+        var removedCount = 0;
+
+        while ((highlightNode = document.querySelector(".tts-highlight")) !== null) {
+            var parent = highlightNode.parentNode;
+
+            if (parent) {
+                try {
+                    while (highlightNode.firstChild) {
+                        parent.insertBefore(highlightNode.firstChild, highlightNode);
+                    }
+
+                    parent.removeChild(highlightNode);
+                    parent.normalize();
+                    removedCount++;
+                } catch (e) {
+                    if (highlightNode.parentNode) {
+                        // Check if it wasn't already removed by a concurrent process
+                        highlightNode.remove(); // Fallback removal
+                    }
+
+                    break; // Exit loop on error to prevent infinite loop on a problematic node
+                }
+            } else {
+                try {
+                    highlightNode.remove();
+                    removedCount++;
+                } catch (e_orphan) {
+                    // console.error("JS: Error removing orphaned highlight node: " + e_orphan.message, highlightNode);
+                }
+
+                break;
+            }
+        }
+    };
+
+    const TTS_HIGHLIGHT_LOG_TAG = "TTS_HIGHLIGHT_DIAGNOSIS";
+
+    window.highlightFromCfi = function (cfi, textToHighlight, startOffset) {
+        console.log(`$ {
+            TTS_HIGHLIGHT_LOG_TAG
+        }
+
+        : highlightFromCfi called. CFI='${cfi}', Offset=$ {
+            startOffset
+        }
+
+        , Text='${textToHighlight.substring(0, 50)}...' `);
+        console.log("TTS_LIST_DIAG: Attempting highlight. CFI: " + cfi + " Text: '" + textToHighlight.substring(0, 20) + "' Offset: " + startOffset);
+
+        window.removeHighlight();
+
+        if (!cfi || !textToHighlight) {
+            const errorMsg = "JS: CFI or text missing.";
+
+            console.log(`$ {
+                TTS_HIGHLIGHT_LOG_TAG
+            }
+
+            : $ {
+                errorMsg
+            }
+
+            `);
+            return errorMsg;
+        }
+
+        try {
+            console.log(`${TTS_HIGHLIGHT_LOG_TAG}: Resolving CFI to node...`);
+            const location = window.getNodeAndOffsetFromCfi(cfi, true);
+
+            if (!location || !location.node) {
+                const errorMsg = "JS: Could not find node for CFI.";
+
+                console.log(`$ {
+                    TTS_HIGHLIGHT_LOG_TAG
+                }
+
+                : $ {
+                    errorMsg
+                }
+
+                `);
+                return errorMsg;
+            }
+
+            console.log(`$ {
+                TTS_HIGHLIGHT_LOG_TAG
+            }
+
+            : Node found for CFI. Node type: $ {
+                location.node.nodeName
+            }
+
+            , Text content: '${(location.node.textContent || "").substring(0, 50)}...' `);
+
+            const baseNode = location.node;
+            let remainingOffset = startOffset;
+
+            const treeWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+            treeWalker.currentNode = baseNode;
+
+            let currentNode = baseNode.nodeType === Node.TEXT_NODE ? baseNode : treeWalker.nextNode();
+
+            // 1. Find the starting text node and character position
+            while (currentNode && remainingOffset >= currentNode.nodeValue.length) {
+                remainingOffset -= currentNode.nodeValue.length;
+                currentNode = treeWalker.nextNode();
+            }
+
+            if (!currentNode) {
+                const errorMsg = "JS: Text offset is out of bounds for the CFI node.";
+
+                console.log(`$ {
+                    TTS_HIGHLIGHT_LOG_TAG
+                }
+
+                : $ {
+                    errorMsg
+                }
+
+                `);
+                return errorMsg;
+            }
+
+            console.log(`$ {
+                TTS_HIGHLIGHT_LOG_TAG
+            }
+
+            : Start node for range found. Node: '${currentNode.nodeValue.substring(0, 50)}...', calculated offset: $ {
+                remainingOffset
+            }
+
+            `);
+
+            const range = document.createRange();
+            range.setStart(currentNode, remainingOffset);
+
+            // 2. Find the ending text node and character position
+            let remainingTextLength = textToHighlight.length;
+            let endNode = currentNode;
+            let endOffset = remainingOffset;
+            let sanityCheck = 0;
+
+            while (remainingTextLength > 0 && endNode && sanityCheck < 50) {
+                const availableLength = endNode.nodeValue.length - endOffset;
+
+                console.log(`$ {
+                    TTS_HIGHLIGHT_LOG_TAG
+                }
+
+                : Finding end range. Remaining text: $ {
+                    remainingTextLength
+                }
+
+                , Current node: '${endNode.nodeValue.substring(0, 50)}...', available length: $ {
+                    availableLength
+                }
+
+                `);
+
+                if (availableLength >= remainingTextLength) {
+                    endOffset += remainingTextLength;
+                    remainingTextLength = 0;
+                } else {
+                    remainingTextLength -= availableLength;
+                    // Important: We need a fresh walker starting from the endNode to find the *next* text node reliably
+                    const nextNodeWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+                    nextNodeWalker.currentNode = endNode;
+                    endNode = nextNodeWalker.nextNode();
+                    endOffset = 0; // Start from the beginning of the next node
+                }
+
+                sanityCheck++;
+            }
+
+            console.log(`$ {
+                TTS_HIGHLIGHT_LOG_TAG
+            }
+
+            : End node for range found. End node: '${endNode ? endNode.nodeValue.substring(0, 50) : "null"}', End offset: $ {
+                endOffset
+            }
+
+            `);
+
+            if (remainingTextLength > 0) {
+                console.log(`$ {
+                    TTS_HIGHLIGHT_LOG_TAG
+                }
+
+                : Text to highlight was longer than found text nodes. Highlighting to end of last found node.`);
+
+                if (endNode) {
+                    range.setEnd(endNode, endNode.nodeValue.length);
+                } else {
+                    const lastKnownGoodNode = range.endContainer;
+                    range.setEnd(lastKnownGoodNode, lastKnownGoodNode.nodeValue.length);
+                }
+            } else {
+                range.setEnd(endNode, endOffset);
+            }
+
+            const highlightSpan = document.createElement("span");
+            highlightSpan.className = "tts-highlight";
+
+            try {
+                console.log(`$ {
+                    TTS_HIGHLIGHT_LOG_TAG
+                }
+
+                : Attempting to surround content with highlight span.`);
+                range.surroundContents(highlightSpan);
+            } catch (e) {
+                console.log(`$ {
+                    TTS_HIGHLIGHT_LOG_TAG
+                }
+
+                : surroundContents failed, using fallback. Error: $ {
+                    e.message
+                }
+
+                `);
+                const contents = range.extractContents();
+                highlightSpan.appendChild(contents);
+                range.insertNode(highlightSpan);
+            }
+
+            console.log(`$ {
+                TTS_HIGHLIGHT_LOG_TAG
+            }
+
+            : Highlight successful. Scrolling into view.`);
+
+            highlightSpan.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+            return "JS: Highlight successful.";
+        } catch (e) {
+            const errorMsg = "JS: Error during highlightFromCfi: " + e.message;
+
+            console.log(`$ {
+            TTS_HIGHLIGHT_LOG_TAG
+        }
+
+        : $ {
+            errorMsg
+        }
+
+        `);
+            return errorMsg;
+        }
+    };
+
+    window.extractTextWithCfiFromTop = function () {
+        console.log("TTS_CHAPTER_CHANGE_DIAG: Starting extractTextWithCfiFromTop");
+        try {
+            const ttsNodeSelector = "p, h1, h2, h3, h4, h5, h6, li, blockquote";
+            const allContentNodesRaw = Array.from(document.body.querySelectorAll(ttsNodeSelector));
+            const allContentNodes = allContentNodesRaw.filter(node => node.querySelector(ttsNodeSelector) === null);
+
+            console.log("TTS_CHAPTER_CHANGE_DIAG: Total nodes found: " + allContentNodes.length);
+
+            let startBlock = null;
+            let startIndex = -1;
+
+            for (let i = 0; i < allContentNodes.length; i++) {
+                const node = allContentNodes[i];
+                const rect = node.getBoundingClientRect();
+
+                if (rect.bottom > (window.VIEWPORT_PADDING_TOP + 10)) {
+                    startBlock = node;
+                    startIndex = i;
+                    break;
+                }
+            }
+
+            if (!startBlock) {
+                console.log("TTS_CHAPTER_CHANGE_DIAG: No visible start block found in viewport.");
+                return window.extractTextWithCfi();
+            }
+
+            console.log("TTS_CHAPTER_CHANGE_DIAG: Starting extraction from node index: " + startIndex);
+
+            const nodesToProcess = allContentNodes.slice(startIndex);
+            const results =[];
+
+            nodesToProcess.forEach((node) => {
+                const text = node.innerText ? node.innerText.trim() : "";
+                if (text.length > 0 && node.offsetParent !== null) {
+                    try {
+                        const cfiObj = getCfiPathForElement(node, 0);
+                        if (cfiObj && cfiObj.cfi) {
+                            results.push({ cfi: cfiObj, text: text });
+                        }
+                    } catch (e) {}
+                }
+            });
+
+            return JSON.stringify(results);
+        } catch (e) {
+            console.log("TTS_CHAPTER_CHANGE_DIAG: Error in extractTextWithCfiFromTop: " + e.message);
+            return window.extractTextWithCfi();
+        }
+    };
+
+    window.extractTextWithCfi = function () {
+        const results =[];
+        const ttsNodeSelector = "p, h1, h2, h3, h4, h5, h6, li, blockquote";
+        const contentNodesRaw = Array.from(document.body.querySelectorAll(ttsNodeSelector));
+
+        const contentNodes = contentNodesRaw.filter(node => node.querySelector(ttsNodeSelector) === null);
+
+        contentNodes.forEach((node) => {
+            const text = node.innerText ? node.innerText.trim() : "";
+
+            if (text.length > 0 && node.offsetParent !== null) {
+                try {
+                    const cfi = getCfiPathForElement(node, 0);
+
+                    if (cfi) {
+                        results.push({ cfi: cfi, text: text });
+                    }
+                } catch (e) {}
+            }
+        });
+        return JSON.stringify(results);
+    };
+
+    window.extractTextWithCfiFromSelection = function() {
+        try {
+            var selection = window.getSelection();
+            if (!selection || selection.rangeCount === 0 || selection.toString().trim() === "") {
+                return window.extractTextWithCfiFromTop(); // Fallback
+            }
+            var range = selection.getRangeAt(0);
+            var startNode = range.startContainer;
+            var startOffset = range.startOffset;
+
+            const ttsNodeSelector = "p, h1, h2, h3, h4, h5, h6, li, blockquote";
+            let startBlock = startNode.nodeType === Node.TEXT_NODE ? startNode.parentNode.closest(ttsNodeSelector) : startNode.closest(ttsNodeSelector);
+
+            if (!startBlock) return window.extractTextWithCfiFromTop(); // Fallback
+
+            let absoluteStartOffset = 0;
+            const treeWalker = document.createTreeWalker(startBlock, NodeFilter.SHOW_TEXT, null, false);
+            let currentNode = treeWalker.nextNode();
+            while (currentNode && currentNode !== startNode) {
+                absoluteStartOffset += currentNode.nodeValue.length;
+                currentNode = treeWalker.nextNode();
+            }
+            if (currentNode === startNode) {
+                absoluteStartOffset += startOffset;
+            }
+
+            const allContentNodesRaw = Array.from(document.body.querySelectorAll(ttsNodeSelector));
+            const allContentNodes = allContentNodesRaw.filter(node => node.querySelector(ttsNodeSelector) === null);
+
+            let startIndex = allContentNodes.findIndex(node => node === startBlock);
+
+            if (startIndex === -1) {
+                startIndex = allContentNodes.findIndex(node => startBlock.contains(node));
+            }
+
+            if (startIndex === -1) return window.extractTextWithCfiFromTop();
+
+            const nodesToProcess = allContentNodes.slice(startIndex);
+            const results =[];
+
+            nodesToProcess.forEach((node, index) => {
+                let fullText = node.textContent || "";
+                if (fullText.trim().length > 0 && node.offsetParent !== null) {
+                    if (node.tagName === 'LI' || node.closest('li')) {
+                        console.log("TTS_LIST_DIAG: Selection extracting node <" + node.tagName + "> inside LI. Text: '" + fullText.substring(0, 30) + "'");
+                    }
+                    try {
+                        const cfiObj = getCfiPathForElement(node, 0);
+                        if (cfiObj && cfiObj.cfi) {
+                            if (index === 0) {
+                                let sliced = fullText.substring(absoluteStartOffset);
+                                if (sliced.trim().length > 0) {
+                                    results.push({
+                                        cfi: cfiObj,
+                                        text: sliced,
+                                        startOffset: absoluteStartOffset
+                                    });
+                                }
+                            } else {
+                                results.push({
+                                    cfi: cfiObj,
+                                    text: fullText,
+                                    startOffset: 0
+                                });
+                            }
+                        }
+                    } catch(e){}
+                }
+            });
+            return JSON.stringify(results);
+        } catch(e) {
+            return window.extractTextWithCfiFromTop();
+        }
+    };
+
+    window.TtsBridgeHelper = {
+        extractAndRelayText: function () {
+            const traceId = Date.now();
+            console.log("TTS_CHAPTER_CHANGE_DIAG: [" + traceId + "] extractAndRelayText invoked.");
+            try {
+                const structuredTextJson = window.extractTextWithCfiFromTop();
+                const len = structuredTextJson ? structuredTextJson.length : 0;
+                console.log("TTS_CHAPTER_CHANGE_DIAG: [" + traceId + "] Relay text JSON length: " + len);
+
+                if (typeof TtsBridge !== "undefined" && TtsBridge.onStructuredTextExtracted) {
+                    TtsBridge.onStructuredTextExtracted(structuredTextJson);
+                } else {
+                    console.log("TTS_CHAPTER_CHANGE_DIAG: [" + traceId + "] Bridge missing!");
+                }
+            } catch (e) {
+                console.log("TTS_CHAPTER_CHANGE_DIAG: [" + traceId + "] Error: " + e.message);
+                if (typeof TtsBridge !== "undefined" && TtsBridge.onStructuredTextExtracted) {
+                    TtsBridge.onStructuredTextExtracted("[]");
+                }
+            }
+        },
+        extractAndRelayTextFromSelection: function() {
+            try {
+                const structuredTextJson = window.extractTextWithCfiFromSelection();
+                if (typeof TtsBridge !== "undefined" && TtsBridge.onStructuredTextExtracted) {
+                    TtsBridge.onStructuredTextExtracted(structuredTextJson);
+                }
+            } catch (e) {
+                if (typeof TtsBridge !== "undefined" && TtsBridge.onStructuredTextExtracted) {
+                    TtsBridge.onStructuredTextExtracted("[]");
+                }
+            }
+        }
+    };
+
+    window.reportTopChunk = function () {
+        if (typeof ProgressReporter === "undefined" || typeof ProgressReporter.updateTopChunk === "undefined") return;
+
+        const topElement = document.elementFromPoint(window.innerWidth / 2, window.VIEWPORT_PADDING_TOP + 1);
+
+        if (topElement) {
+            const chunkContainer = topElement.closest("[data-chunk-index]");
+
+            if (chunkContainer) {
+                const chunkIndex = parseInt(chunkContainer.dataset.chunkIndex, 10);
+
+                if (!isNaN(chunkIndex)) {
+                    ProgressReporter.updateTopChunk(chunkIndex);
+                }
+            } else {
+                ProgressReporter.updateTopChunk(0);
+            }
+        }
+    };
+
+    window.AiBridgeHelper = {
+        extractAndRelayTextForSummarization: function () {
+            var textContent = "";
+
+            try {
+                var mainElement = document.querySelector('article, [role="main"], main, body');
+
+                if (mainElement) {
+                    textContent = mainElement.innerText || mainElement.textContent || "";
+                } else {
+                    textContent = document.body.innerText || document.body.textContent || "";
+                }
+
+                if (typeof AiBridge !== "undefined" && AiBridge.onContentExtractedForSummarization) {
+                    AiBridge.onContentExtractedForSummarization(textContent.trim());
+                }
+            } catch (e) {
+                if (typeof AiBridge !== "undefined" && AiBridge.onContentExtractedForSummarization) {
+                    AiBridge.onContentExtractedForSummarization("");
+                }
+            }
+        },
+    };
+
+    window.checkImagesForDiagnosis = function () {
+        const images = document.querySelectorAll("img, image"); // 'image' for SVG images
+        const logTag = "ImageDiagnosis";
+        console.log(logTag + ": JS checkImagesForDiagnosis called. Found " + images.length + " image elements.");
+
+        images.forEach((img, index) => {
+            const src = img.src || img.getAttribute("xlink:href");
+            console.log(logTag + ": Image #" + index + " | src: '" + src + "'");
+
+            function processImage() {
+                console.log(logTag + ": Processing Image #" + index + " (complete=" + img.complete + ")");
+                console.log(logTag + ": Image #" + index + " | clientWidth: " + img.clientWidth + ", clientHeight: " + img.clientHeight);
+                console.log(logTag + ": Image #" + index + " | naturalWidth: " + img.naturalWidth + ", naturalHeight: " + img.naturalHeight);
+                console.log(logTag + ": Image #" + index + " | is visible (offsetParent): " + (img.offsetParent !== null));
+
+                const style = window.getComputedStyle(img);
+                console.log(
+                    logTag +
+                        ": Image #" +
+                        index +
+                        " | computed display: '" +
+                        style.display +
+                        "', visibility: '" +
+                        style.visibility +
+                        "', opacity: '" +
+                        style.opacity +
+                        "'",
+                );
+
+                // FIX: If height has collapsed, manually calculate and set it forcefully.
+                if (img.complete && img.naturalWidth > 0 && img.clientWidth > 0 && img.clientHeight === 0) {
+                    console.log(logTag + ": CORRECTING GEOMETRY for Image #" + index);
+                    const parent = img.parentElement;
+
+                    if (parent) {
+                        const parentStyle = window.getComputedStyle(parent);
+                        console.log(
+                            logTag +
+                                ": Parent <" +
+                                parent.tagName +
+                                "> computed height: " +
+                                parentStyle.height +
+                                ", overflow: " +
+                                parentStyle.overflow,
+                        );
+                        // Force the parent's height to be determined by its content. This is crucial.
+                        parent.style.setProperty("height", "auto", "important");
+                    }
+
+                    const aspectRatio = img.naturalHeight / img.naturalWidth;
+                    const correctHeight = img.clientWidth * aspectRatio;
+
+                    // Remove the conflicting max-height property and then set the explicit height.
+                    img.style.setProperty("max-height", "none", "important");
+                    img.style.setProperty("height", correctHeight + "px", "important");
+
+                    console.log(logTag + ": Corrective styles applied to Image #" + index + ". Verifying height after a short delay for reflow...");
+
+                    // After applying styles, wait a moment for the browser to reflow the layout
+                    // before reporting the new height and updating the scroll state.
+                    setTimeout(
+                        function () {
+                            console.log(logTag + ": Verified height for Image #" + index + ": " + img.clientHeight + "px");
+                            window.reportScrollState(); // Update scroll metrics now that the image has height
+                        },
+
+                        150,
+                    );
+                }
+
+                img.onerror = function () {
+                    console.log(logTag + ": ERROR: Image #" + index + " FAILED to load. Src was: '" + src + "'");
+                };
+
+                if (img.complete && img.naturalWidth === 0) {
+                    console.log(
+                        logTag + ": WARNING: Image #" + index + " is complete but has 0 naturalWidth, may indicate loading error. Src: '" + src + "'",
+                    );
+                }
+            }
+
+            if (img.complete) {
+                processImage();
+            } else {
+                img.onload = processImage;
+            }
+        });
+    };
+
+    const CFI_LOG_TAG = "CFI_DIAGNOSIS";
+
+    function log(message) {
+        console.log(`$ {
+            CFI_LOG_TAG
+        }
+
+        : $ {
+            message
+        }
+
+        `);
+    }
+
+    function resolveCfiPath(rootElement, path, requestChunkIfMissing = false) {
+        let currentNode = rootElement;
+        const steps = path.substring(1).split("/").map(Number);
+
+        for (let i = 0; i < steps.length; i++) {
+            const cfiIndex = steps[i];
+            if (!currentNode) return null;
+
+            // Handle virtualized content container specially
+            if (currentNode.id === 'content-container') {
+                const childNodeIndex = (cfiIndex - 2) / 2;
+                let chunkIndex = Math.floor(childNodeIndex / 20);
+                let indexInChunk = childNodeIndex % 20;
+
+                let chunkElement = currentNode.querySelector(`.chunk-container[data-chunk-index="${chunkIndex}"]`);
+                if (chunkElement) {
+                    if (chunkElement.innerHTML === "") {
+                        if (window.virtualization && window.virtualization.chunksData[chunkIndex]) {
+                            console.log("CFI_DIAGNOSIS: Chunk " + chunkIndex + " was empty, restoring content for CFI resolution.");
+                            chunkElement.innerHTML = window.virtualization.chunksData[chunkIndex];
+                            chunkElement.style.height = "";
+                            if (window.CURRENT_HIGHLIGHTS) {
+                                window.HighlightBridgeHelper.restoreHighlights(window.CURRENT_HIGHLIGHTS);
+                            }
+                        } else {
+                            if (requestChunkIfMissing) {
+                                console.log("PosSaveDiag: Requesting missing chunk " + chunkIndex + " for CFI resolution.");
+                                if (window.ContentBridge && window.ContentBridge.requestChunk) {
+                                    if (!window._requestedChunksForCfi) window._requestedChunksForCfi = {};
+                                    if (!window._requestedChunksForCfi[chunkIndex]) {
+                                        window._requestedChunksForCfi[chunkIndex] = true;
+                                        window.ContentBridge.requestChunk(chunkIndex);
+                                    }
+                                }
+                            }
+                            return null;
+                        }
+                    }
+
+                    let elementsInChunk = Array.from(chunkElement.childNodes).filter(n => n.nodeType === Node.ELEMENT_NODE);
+                    if (indexInChunk >= 0 && indexInChunk < elementsInChunk.length) {
+                        currentNode = elementsInChunk[indexInChunk];
+                        continue;
+                    }
+                }
+                return null;
+            }
+
+            let elementChildren = Array.from(currentNode.childNodes).filter((node) => node.nodeType === Node.ELEMENT_NODE);
+            const childNodeIndex = (cfiIndex - 2) / 2;
+
+            if (childNodeIndex >= 0 && childNodeIndex < elementChildren.length) {
+                currentNode = elementChildren[childNodeIndex];
+            } else {
+                return null;
+            }
+        }
+        return currentNode;
+    }
+
+    window.getNodeAndOffsetFromCfi = function (cfi, requestChunkIfMissing = false) {
+        try {
+            var pathParts = cfi.split(":");
+            var nodePath = pathParts[0];
+            var charOffset = pathParts.length > 1 ? parseInt(pathParts[1], 10) : 0;
+
+            let cfiRoot = document.getElementById("content-container") || document.body;
+            let pathToResolve = nodePath;
+
+            // Strip the /4 prefix because cfiRoot (content-container or body) represents /4
+            if (pathToResolve.startsWith("/4/")) {
+                pathToResolve = "/" + pathToResolve.substring(3);
+            } else if (pathToResolve === "/4") {
+                pathToResolve = "";
+            }
+
+            if (!pathToResolve) {
+                return { node: cfiRoot, offset: charOffset };
+            }
+
+            let resolvedNode = resolveCfiPath(cfiRoot, pathToResolve, requestChunkIfMissing);
+
+            if (!resolvedNode) return null;
+
+            let currentNode = resolvedNode;
+
+            if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                const treeWalker = document.createTreeWalker(currentNode, NodeFilter.SHOW_TEXT, null, false);
+                const firstTextNode = treeWalker.nextNode();
+                if (firstTextNode) {
+                    currentNode = firstTextNode;
+                }
+            }
+
+            return { node: currentNode, offset: charOffset };
+        } catch (e) {
+            return null;
+        }
+    };
+
+    window.getCfiPathForElement = function (element, charOffset) {
+        const logStack = [];
+        try {
+            var path =[];
+            var currentNode = element;
+
+            if (currentNode.nodeType === Node.TEXT_NODE) {
+                var accumulatedOffset = charOffset || 0;
+                var sibling = currentNode.previousSibling;
+                while (sibling) {
+                    if (sibling.nodeType === Node.TEXT_NODE) {
+                        accumulatedOffset += sibling.nodeValue.length;
+                    } else if (sibling.nodeType === Node.ELEMENT_NODE) {
+                        accumulatedOffset += (sibling.textContent || "").length;
+                    }
+                    sibling = sibling.previousSibling;
+                }
+                charOffset = accumulatedOffset;
+                currentNode = currentNode.parentNode;
+            }
+
+            const root = document.getElementById("content-container") || document.body;
+
+            while (currentNode && currentNode !== root && currentNode.parentNode) {
+                let parentNode = currentNode.parentNode;
+
+                if (parentNode.classList && parentNode.classList.contains('chunk-container')) {
+                    let trueParent = parentNode.parentNode;
+                    let elementSiblingsInChunk = Array.from(parentNode.childNodes).filter(node => node.nodeType === Node.ELEMENT_NODE);
+                    let indexInChunk = elementSiblingsInChunk.indexOf(currentNode);
+
+                    if (indexInChunk === -1) {
+                        currentNode = trueParent;
+                        continue;
+                    }
+
+                    let chunkIndex = parseInt(parentNode.dataset.chunkIndex, 10);
+                    let elementsInPrecedingChunks = chunkIndex * 20;
+
+                    let trueIndex = elementsInPrecedingChunks + indexInChunk;
+                    let cfiIndex = trueIndex * 2 + 2;
+                    path.unshift(cfiIndex);
+
+                    logStack.push(`Chunk ${chunkIndex}, IdxInChunk ${indexInChunk}, TrueIdx ${trueIndex} -> CFI /${cfiIndex}`);
+
+                    currentNode = trueParent;
+                    continue;
+                }
+
+                const elementSiblings = Array.from(parentNode.childNodes).filter((node) => node.nodeType === Node.ELEMENT_NODE);
+                const nodeIndex = elementSiblings.indexOf(currentNode);
+
+                if (nodeIndex === -1) {
+                    currentNode = parentNode;
+                    continue;
+                }
+
+                const cfiIndex = nodeIndex * 2 + 2;
+                path.unshift(cfiIndex);
+                currentNode = parentNode;
+            }
+
+            var cfi = "/4";
+            if (path.length > 0) {
+                 cfi += "/" + path.join("/");
+            }
+            if (charOffset !== undefined && charOffset > 0) {
+                cfi += ":" + charOffset;
+            }
+            logStack.push(`Generated CFI: ${cfi}`);
+            return { cfi: cfi, log: logStack };
+        } catch (e) {
+            logStack.push("Error: " + e.message);
+            return { cfi: "/4/2", log: logStack };
+        }
+    };
+
+    window.getCurrentCfi = function() {
+        const debugLog =[];
+        let finalCfi = "/4/2";
+
+        try {
+            const viewportX = window.innerWidth / 2;
+            let viewportY = window.VIEWPORT_PADDING_TOP + 5;
+            let topElement = null;
+
+            for (let i = 0; i < 10; i++) {
+                let el = document.elementFromPoint(viewportX, viewportY);
+                if (el && el.id !== 'content-container' &&
+                    !(el.classList && el.classList.contains('chunk-container') && el.innerText.trim() === "")) {
+                    topElement = el;
+                    break;
+                }
+                viewportY += 15;
+            }
+
+            if (!topElement || topElement.id === 'content-container' || (topElement.classList && topElement.classList.contains('chunk-container'))) {
+                const elements = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, span');
+                for (let i = 0; i < elements.length; i++) {
+                    const el = elements[i];
+                    const rect = el.getBoundingClientRect();
+                    if (rect.bottom > window.VIEWPORT_PADDING_TOP && el.innerText.trim().length > 0) {
+                        topElement = el;
+                        break;
+                    }
+                }
+            }
+
+            if (!topElement) {
+                topElement = document.body.firstElementChild;
+            }
+
+            if (!topElement) {
+                 return JSON.stringify({ cfi: finalCfi, log: debugLog });
+            }
+
+            let range = null;
+            if (document.caretRangeFromPoint) {
+                range = document.caretRangeFromPoint(viewportX, viewportY);
+            }
+
+            let nodeForCfi;
+            let offsetForCfi = 0;
+
+            if (range && range.startContainer && range.startContainer.nodeType === Node.TEXT_NODE) {
+                 nodeForCfi = range.startContainer;
+                 offsetForCfi = range.startOffset;
+                 debugLog.push(`Caret range hit successfully at offset ${offsetForCfi}`);
+            } else {
+                 const treeWalker = document.createTreeWalker(topElement, NodeFilter.SHOW_TEXT, null, false);
+                 let firstTextNode = treeWalker.nextNode();
+                 nodeForCfi = (firstTextNode && firstTextNode.textContent.trim().length > 0) ? firstTextNode : topElement;
+                 offsetForCfi = 0;
+            }
+
+            const cfiResult = window.getCfiPathForElement(nodeForCfi, offsetForCfi);
+            finalCfi = cfiResult.cfi;
+            if (cfiResult.log) debugLog.push(...cfiResult.log);
+
+        } catch (e) {
+            debugLog.push("Error in getCurrentCfi: " + e.message);
+        }
+
+        return JSON.stringify({ cfi: finalCfi, log: debugLog });
+    };
+
+    const TAG_BM = "BookmarkDiagnosis";
+
+    function logBm(msg) {
+        console.log(TAG_BM + ": " + msg);
+    }
+
+    window.scrollToCfi = function(cfi) {
+        let cleanCfi = cfi;
+
+        if (cfi && cfi.includes('@')) {
+            cleanCfi = cfi.substring(cfi.indexOf('@') + 1);
+        }
+
+        console.log("NavDiag: JS scrollToCfi called with cleanCfi=" + cleanCfi);
+        window._requestedChunksForCfi = {}; // Reset the requested cache
+
+        if (!cleanCfi || !cleanCfi.startsWith('/')) {
+            if (window.CfiBridge && window.CfiBridge.onScrollFinished) {
+                 window.CfiBridge.onScrollFinished(false);
+            }
+            return;
+        }
+
+        let attempts = 0;
+        const maxAttempts = 40; // Increased to 40 attempts (4 seconds) to give Kotlin time to inject chunks
+        let stabilizingFrames = 0;
+        const maxStabilizingFrames = 8;
+
+        function attemptScroll() {
+            attempts++;
+
+            try {
+                // Pass 'true' to dynamically request any missing chunks needed to resolve the position
+                const location = window.getNodeAndOffsetFromCfi(cleanCfi, true);
+
+                if (location && location.node) {
+                    if (!document.body.contains(location.node)) {
+                         if (attempts < maxAttempts) setTimeout(attemptScroll, 100);
+                         return;
+                    }
+
+                    let targetScrollY = 0;
+                    if (location.node.nodeType === Node.TEXT_NODE && location.offset > 0) {
+                        try {
+                            console.log("PosSaveDiag: Initial text node length=" + location.node.nodeValue.length + ", location.offset=" + location.offset);
+                            let currentNode = location.node;
+                            let remainingOffset = location.offset;
+
+                            // Traverse sibling text nodes to find the exact offset
+                            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+                            walker.currentNode = currentNode;
+
+                            while (currentNode && remainingOffset > currentNode.nodeValue.length) {
+                                remainingOffset -= currentNode.nodeValue.length;
+                                const next = walker.nextNode();
+                                if (!next) {
+                                    console.log("PosSaveDiag: Reached end of text nodes while traversing.");
+                                    break;
+                                }
+                                currentNode = next;
+                            }
+
+                            console.log("PosSaveDiag: Traversed to node with text: '" + currentNode.nodeValue.substring(0, 20) + "', remainingOffset=" + remainingOffset + ", actual length=" + currentNode.nodeValue.length);
+
+                            const range = document.createRange();
+                            const validOffset = Math.min(remainingOffset, currentNode.nodeValue.length);
+
+                            const endOffset = Math.min(validOffset + 1, currentNode.nodeValue.length);
+                            if (validOffset < endOffset) {
+                                range.setStart(currentNode, validOffset);
+                                range.setEnd(currentNode, endOffset);
+                            } else if (validOffset > 0) {
+                                range.setStart(currentNode, validOffset - 1);
+                                range.setEnd(currentNode, validOffset);
+                            } else {
+                                range.setStart(currentNode, validOffset);
+                                range.collapse(true);
+                            }
+
+                            let rect = range.getBoundingClientRect();
+                            const rects = range.getClientRects();
+                            if (rects && rects.length > 0) {
+                                rect = rects[0];
+                            }
+
+                            if (rect.top !== 0 || rect.bottom !== 0) {
+                                targetScrollY = window.scrollY + rect.top - (window.VIEWPORT_PADDING_TOP + 5);
+                            }
+                        } catch (e) {
+                            console.log("PosSaveDiag: Error calculating range bounding rect: " + e.message);
+                        }
+                    }
+
+                    if (targetScrollY === 0) {
+                        const targetElement = (location.node.nodeType === Node.TEXT_NODE) ? location.node.parentNode : location.node;
+                        const rect = targetElement.getBoundingClientRect();
+                        targetScrollY = window.scrollY + rect.top - (window.VIEWPORT_PADDING_TOP + 5);
+                    }
+
+                    if (Math.abs(window.scrollY - targetScrollY) > 1) {
+                        console.log("NavDiag: Scrolling to targetY=" + targetScrollY);
+                        window.scrollTo({ top: targetScrollY, behavior: 'auto' });
+                    }
+
+                    stabilizingFrames++;
+                    if (stabilizingFrames < maxStabilizingFrames) {
+                        setTimeout(attemptScroll, 100);
+                    } else {
+                        setTimeout(() => {
+                            window.reportScrollState();
+                            if (window.CfiBridge && window.CfiBridge.onScrollFinished) {
+                                window.CfiBridge.onScrollFinished(true);
+                            }
+                        }, 50);
+                    }
+
+                } else {
+                    if (attempts < maxAttempts) {
+                        setTimeout(attemptScroll, 100);
+                    } else {
+                        console.log("PosSaveDiag: attemptScroll failed after " + maxAttempts + " attempts for CFI: " + cleanCfi);
+                        if (window.CfiBridge && window.CfiBridge.onScrollFinished) {
+                            window.CfiBridge.onScrollFinished(false);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log("PosSaveDiag: attemptScroll exception: " + e.message);
+                if (window.CfiBridge && window.CfiBridge.onScrollFinished) {
+                    window.CfiBridge.onScrollFinished(false);
+                }
+            }
+        }
+
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(function() {
+                attemptScroll();
+            });
+        } else {
+            attemptScroll();
+        }
+    };
+
+    window.getElementByCfi = function(cfi) {
+        logBm("getElementByCfi called with: " + cfi);
+        try {
+            const location = window.getNodeAndOffsetFromCfi(cfi);
+            if (location && location.node) {
+                logBm("Found node: " + location.node.nodeName);
+                return (location.node.nodeType === Node.TEXT_NODE) ? location.node.parentNode : location.node;
+            }
+            logBm("Node not found.");
+            return null;
+        } catch (e) {
+            logBm("Error: " + e.message);
+            return null;
+        }
+    };
+
+    window.isElementInViewport = function (el) {
+        if (!el || typeof el.getBoundingClientRect !== "function") return false;
+        const rect = el.getBoundingClientRect();
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        return rect.top >= 0 && rect.top <= viewportHeight;
+    };
+
+    window.getSnippetForCfi = function (cfi) {
+        var TAG_DIAG = "BookmarkDiagnosis";
+        console.log(TAG_DIAG + ": getSnippetForCfi called with CFI: " + cfi);
+        const location = window.getNodeAndOffsetFromCfi(cfi);
+
+        if (location && location.node) {
+            let textNode = location.node.nodeType === Node.TEXT_NODE ? location.node : null;
+            let offset = location.offset;
+
+            if (!textNode) {
+                const treeWalker = document.createTreeWalker(location.node, NodeFilter.SHOW_TEXT, null, false);
+                textNode = treeWalker.nextNode();
+                offset = 0;
+            } else if (offset > 0) {
+                const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+                walker.currentNode = textNode;
+                while (textNode && offset > textNode.nodeValue.length) {
+                    offset -= textNode.nodeValue.length;
+                    const next = walker.nextNode();
+                    if (!next) break;
+                    textNode = next;
+                }
+            }
+
+            if (textNode) {
+                const fullText = textNode.textContent;
+                const lastSpace = fullText.lastIndexOf(" ", offset);
+                const startIndex = lastSpace === -1 ? 0 : lastSpace + 1;
+
+                let snippet = fullText.substring(startIndex);
+
+                const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+                walker.currentNode = textNode;
+
+                while (snippet.length < 160) {
+                    const nextNode = walker.nextNode();
+
+                    if (nextNode) {
+                        snippet += " " + nextNode.textContent;
+                    } else {
+                        break;
+                    }
+                }
+
+                const finalSnippet = snippet.trim().replace(/\s+/g, " ").substring(0, 150);
+                console.log(TAG_DIAG + ": Snippet generated: '" + finalSnippet + "'");
+                return finalSnippet;
+            }
+        }
+
+        console.log(TAG_DIAG + ": No usable text found for CFI. Returning empty snippet.");
+        return "";
+    };
+
+    window.findFirstVisibleCfi = function (cfiArray) {
+        if (!Array.isArray(cfiArray)) {
+            return null;
+        }
+
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        const activationZoneEnd = window.VIEWPORT_PADDING_TOP + (viewportHeight - window.VIEWPORT_PADDING_TOP) * 0.6;
+
+        for (const cfi of cfiArray) {
+            const location = window.getNodeAndOffsetFromCfi(cfi);
+
+            if (location && location.node) {
+                try {
+                    const node = location.node;
+                    // Use the element's rect for stability, not a potentially zero-height range rect.
+                    const elementForRect = node.nodeType === Node.TEXT_NODE ? node.parentNode : node;
+                    const rect = elementForRect.getBoundingClientRect();
+                    const nodeName = elementForRect.nodeName;
+
+                    // The element is "active" if:
+                    // 1. It's positioned at the top of the content, even if under the padding.
+                    const isAtContentTop = rect.top >= 0 && rect.top < window.VIEWPORT_PADDING_TOP;
+                    // 2. Any part of it overlaps with the main "reading zone" below the padding.
+                    const isInReadingZone = rect.bottom > window.VIEWPORT_PADDING_TOP && rect.top < activationZoneEnd;
+
+                    if ((isAtContentTop && rect.height > 0) || isInReadingZone) {
+                        return cfi;
+                    }
+                } catch (e) {
+                    console.log(TAG + ": Error processing CFI " + cfi + ": " + e.message);
+                }
+            } else {
+                console.log(TAG + ": No node found for CFI: " + cfi);
+            }
+        }
+
+        console.log(TAG + ": No visible bookmarked element found in viewport. Returning null.");
+        return null;
+    };
+})();
+
+(function () {
+    // --- VIRTUALIZATION LOGIC ---
+    if (window.virtualization) return;
+
+    let currentBottomChunkIndex = 0;
+    let totalChunks = 0;
+    let isLoading = false;
+    let observer;
+
+    window.virtualization = {
+        totalChunks: 0,
+        chunksData: [],
+        chunkHeights: [],
+        observer: null,
+
+        init: function (initialChunkIndex, total) {
+            console.log(`Virtualization: Init with ${total} chunks. Anchor: ${initialChunkIndex}`);
+            this.totalChunks = total;
+            this.chunksData = new Array(total).fill(null);
+            this.chunkHeights = new Array(total).fill(0);
+
+            const container = document.getElementById("content-container");
+
+            if (container) {
+                container.querySelectorAll(".chunk-container").forEach((div) => {
+                    let idx = parseInt(div.dataset.chunkIndex, 10);
+                    let content = div.innerHTML;
+
+                    if (content.trim().length > 0) {
+                        this.chunksData[idx] = content;
+                        this.chunkHeights[idx] = div.getBoundingClientRect().height;
+                    }
+                });
+            }
+
+            this.setupObserver();
+        },
+
+        setupObserver: function () {
+            if (this.observer) this.observer.disconnect();
+
+            this.observer = new IntersectionObserver(
+                (entries) => {
+                    let scrollAdjust = 0;
+                    let domChanged = false;
+
+                    entries.forEach((entry) => {
+                        let div = entry.target;
+                        let idx = parseInt(div.dataset.chunkIndex, 10);
+
+                        if (entry.isIntersecting) {
+                            if (!this.chunksData[idx]) {
+                                if (window.ContentBridge && window.ContentBridge.requestChunk) {
+                                    window.ContentBridge.requestChunk(idx);
+                                }
+                            } else if (div.innerHTML === "") {
+                                let oldHeight = div.getBoundingClientRect().height;
+                                div.innerHTML = this.chunksData[idx];
+                                div.style.height = "";
+
+                                let newHeight = div.getBoundingClientRect().height;
+                                this.chunkHeights[idx] = newHeight;
+                                domChanged = true;
+
+                                if (div.getBoundingClientRect().top < 0) {
+                                    scrollAdjust += (newHeight - oldHeight);
+                                }
+                                if (window.CURRENT_HIGHLIGHTS) {
+                                    window.HighlightBridgeHelper.restoreHighlights(window.CURRENT_HIGHLIGHTS);
+                                }
+                                if (window.CURRENT_SEARCH_QUERY) {
+                                    window.highlightAllOccurrences(window.CURRENT_SEARCH_QUERY);
+                                }
+                            }
+                        } else {
+                            if (div.innerHTML !== "") {
+                                let oldHeight = div.getBoundingClientRect().height;
+                                this.chunkHeights[idx] = oldHeight;
+                                div.style.height = oldHeight + "px";
+                                div.innerHTML = "";
+                                domChanged = true;
+                            }
+                        }
+                    });
+
+                    if (scrollAdjust !== 0) {
+                        window.scrollBy(0, scrollAdjust);
+                    }
+
+                    if (domChanged && window.reportScrollState) {
+                        setTimeout(window.reportScrollState, 50);
+                    }
+                },
+                { rootMargin: "2500px 0px" }
+            );
+
+            document.querySelectorAll(".chunk-container").forEach((div) => {
+                this.observer.observe(div);
+            });
+        },
+
+        appendChunk: function (index, htmlContent) {
+            console.log(`Virtualization: Receiving chunk ${index} from Kotlin`);
+
+            if (Array.isArray(this.chunksData)) {
+                this.chunksData[index] = htmlContent;
+            }
+
+            let div = document.querySelector(`.chunk-container[data-chunk-index="${index}"]`);
+
+            if (div && div.innerHTML === "") {
+                let oldHeight = div.getBoundingClientRect().height;
+                div.innerHTML = htmlContent;
+                div.style.height = "";
+
+                let newHeight = div.getBoundingClientRect().height;
+                if (Array.isArray(this.chunkHeights)) {
+                    this.chunkHeights[index] = newHeight;
+                }
+
+                if (div.getBoundingClientRect().bottom < 0) {
+                    window.scrollBy(0, newHeight - oldHeight);
+                }
+
+                if (window.reportScrollState) {
+                    setTimeout(window.reportScrollState, 50);
+                }
+
+                if (window.CURRENT_HIGHLIGHTS) {
+                    window.HighlightBridgeHelper.restoreHighlights(window.CURRENT_HIGHLIGHTS);
+                }
+
+                if (window.CURRENT_SEARCH_QUERY) {
+                    window.highlightAllOccurrences(window.CURRENT_SEARCH_QUERY);
+                }
+            }
+
+            if (window.checkImagesForDiagnosis) {
+                setTimeout(window.checkImagesForDiagnosis, 100);
+            }
+            setTimeout(applyReaderImageAnchors, 80);
+        },
+    };
+
+    const HL_LOG_TAG = "HIGHLIGHT_DEBUG";
+
+    window.HighlightBridgeHelper = {
+        updateHighlightStyle: function (cfi, newColorClass, colorId) {
+            console.log(`${HL_LOG_TAG}: updateHighlightStyle called. CFI: ${cfi}, Class: ${newColorClass}`);
+
+            var allSpans = document.querySelectorAll('span[class*="user-highlight-"]');
+
+            allSpans.forEach((span) => {
+                var currentCfiAttr = span.getAttribute("data-cfi") || "";
+                var cfis = currentCfiAttr.split(";;");
+
+                if (cfis.includes(cfi)) {
+                    var classesToRemove = [];
+                    for (var i = 0; i < span.classList.length; i++) {
+                        if (span.classList[i].startsWith("user-highlight-")) {
+                            classesToRemove.push(span.classList[i]);
+                        }
+                    }
+
+                    classesToRemove.forEach((cls) => span.classList.remove(cls));
+
+                    span.classList.add(newColorClass);
+                }
+            });
+
+            if (window.HighlightBridge) {
+                var sampleSpan = document.querySelector(`span[data-cfi*='${cfi}']`);
+                var text = sampleSpan ? sampleSpan.textContent : "";
+                window.HighlightBridge.onHighlightCreated(cfi, text, colorId);
+            }
+        },
+
+        createUserHighlight: function (colorClass, colorId) {
+            console.log(`$ {
+                    HL_LOG_TAG
+                }
+
+                : createUserHighlight. Class: $ {
+                    colorClass
+                }
+
+                `);
+            var selection = window.getSelection();
+
+            if (!selection || selection.rangeCount === 0 || selection.toString().trim() === "") {
+                return;
+            }
+
+            try {
+                var range = selection.getRangeAt(0);
+                var text = range.toString();
+
+                var safeStartNode = range.startContainer;
+                var safeStartOffset = range.startOffset;
+                var safeEndNode = range.endContainer;
+                var safeEndOffset = range.endOffset;
+
+                console.log(`$ {
+                        HL_LOG_TAG
+                    }
+
+                    : [CREATE] Raw Selection - Text: '${text}' `);
+
+                console.log(`$ {
+                        HL_LOG_TAG
+                    }
+
+                    : [CREATE] StartContainer Type: $ {
+                        safeStartNode.nodeType
+                    }
+
+                    , Name: $ {
+                        safeStartNode.nodeName
+                    }
+
+                    `);
+
+                var startResult = getCfiPathForElement(safeStartNode, safeStartOffset);
+                var startCfi = startResult.cfi;
+
+                var endResult = getCfiPathForElement(safeEndNode, safeEndOffset);
+                var endCfi = endResult.cfi;
+
+                var finalCfi = startCfi;
+
+                if (startCfi !== endCfi) {
+                    finalCfi = startCfi + "|" + endCfi;
+
+                    console.log(`$ {
+                            HL_LOG_TAG
+                        }
+
+                        : [CREATE] Range CFI Detected. Start: $ {
+                            startCfi
+                        }
+
+                        , End: $ {
+                            endCfi
+                        }
+
+                        `);
+                }
+
+                console.log(`$ {
+                        HL_LOG_TAG
+                    }
+
+                    : [CREATE] Final CFI: $ {
+                        finalCfi
+                    }
+
+                    `);
+
+                range = this.normalizeRangeBoundaries(range);
+                this.highlightRangeSafe(range, colorClass, finalCfi);
+
+                selection.removeAllRanges();
+
+                if (window.HighlightBridge) {
+                    window.HighlightBridge.onHighlightCreated(finalCfi, text, colorId);
+                }
+            } catch (e) {
+                console.log(
+                    `$ {
+                        HL_LOG_TAG
+                    }
+
+                    : Create Error: ` + e.message,
+                );
+            }
+        },
+
+        normalizeRangeBoundaries: function (range) {
+            var startContainer = range.startContainer;
+            var startOffset = range.startOffset;
+            var endContainer = range.endContainer;
+            var endOffset = range.endOffset;
+
+            if (startContainer.nodeType === Node.TEXT_NODE && startOffset > 0 && startOffset < startContainer.length) {
+                var newStartNode = startContainer.splitText(startOffset);
+                range.setStart(newStartNode, 0);
+
+                if (endContainer === startContainer) {
+                    endContainer = newStartNode;
+                    endOffset = endOffset - startOffset;
+                }
+            }
+
+            if (endContainer.nodeType === Node.TEXT_NODE && endOffset > 0 && endOffset < endContainer.length) {
+                endContainer.splitText(endOffset);
+                range.setEnd(endContainer, endOffset);
+            }
+
+            return range;
+        },
+
+        highlightRangeSafe: function (range, className, newCfi) {
+            var nodes = this.getTextNodesInRange(range);
+
+            nodes.forEach((node) => {
+                var parent = node.parentNode;
+
+                if (parent && parent.tagName === "SPAN" && parent.classList.contains(className)) {
+                    var currentCfi = parent.getAttribute("data-cfi") || "";
+                    var cfiList = currentCfi.split(";;");
+
+                    if (!cfiList.includes(newCfi)) {
+                        parent.setAttribute("data-cfi", currentCfi ? (currentCfi + ";;" + newCfi) : newCfi);
+                    }
+                } else {
+                    if (node.nodeValue.trim().length === 0) return;
+                    var span = document.createElement("span");
+                    span.className = className;
+                    span.setAttribute("data-cfi", newCfi);
+                    node.parentNode.insertBefore(span, node);
+                    span.appendChild(node);
+                }
+            });
+        },
+
+        getTextNodesInRange: function (range) {
+            var textNodes = [];
+            var container = range.commonAncestorContainer;
+            var root = container.nodeType === Node.TEXT_NODE ? container.parentNode : container;
+
+            var walker = document.createTreeWalker(
+                root,
+                NodeFilter.SHOW_TEXT,
+                {
+                    acceptNode: function (node) {
+                        return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+                    },
+                },
+
+                false,
+            );
+
+            while (walker.nextNode()) {
+                textNodes.push(walker.currentNode);
+            }
+
+            return textNodes;
+        },
+
+        removeHighlightByCfi: function (cfiToRemove, optionalCssClass) {
+            console.log(`$ {
+                HL_LOG_TAG
+            }
+
+            : removeHighlightByCfi called.`);
+
+            console.log(`$ {
+                HL_LOG_TAG
+            }
+
+            : -> Target CFI: '${cfiToRemove}' `);
+
+            console.log(`$ {
+                HL_LOG_TAG
+            }
+
+            : -> Optional Class: '${optionalCssClass}' `);
+
+            // 1. Select all highlight spans manually to avoid selector syntax errors
+            var allSpans = document.querySelectorAll("span[data-cfi]");
+
+            console.log(`$ {
+                HL_LOG_TAG
+            }
+
+            : Total highlight spans found in DOM: $ {
+                allSpans.length
+            }
+
+            `);
+
+            var foundCount = 0;
+            var removedCount = 0;
+            var updatedCount = 0;
+
+            allSpans.forEach((span) => {
+                var currentCfiAttr = span.getAttribute("data-cfi") || "";
+                var cfiList = currentCfiAttr.split(";;");
+
+                // Detailed check for match
+                if (cfiList.includes(cfiToRemove)) {
+                    foundCount++;
+
+                    console.log(`$ {
+                            HL_LOG_TAG
+                        }
+
+                        : Match found on span. Current CFIs: [$ {
+                            currentCfiAttr
+                        }
+
+                        ]`);
+
+                    var newCfiList = cfiList.filter((c) => c !== cfiToRemove);
+
+                    if (newCfiList.length === 0) {
+                        // CASE 1: No other highlights on this span -> Remove entirely
+                        console.log(`$ {
+                                HL_LOG_TAG
+                            }
+
+                            : -> Removing span entirely (no remaining CFIs).`);
+                        var parent = span.parentNode;
+                        while (span.firstChild) parent.insertBefore(span.firstChild, span);
+                        parent.removeChild(span);
+                        parent.normalize();
+                        removedCount++;
+                    } else {
+                        console.log(`$ {
+                                HL_LOG_TAG
+                            }
+
+                            : -> Updating span (remaining CFIs: $ {
+                                    newCfiList.join(';;')
+                                }).`);
+                        span.setAttribute("data-cfi", newCfiList.join(";;"));
+
+                        if (optionalCssClass) {
+                            console.log(`$ {
+                                    HL_LOG_TAG
+                                }
+
+                                : -> Removing CSS class: $ {
+                                    optionalCssClass
+                                }
+
+                                `);
+                            span.classList.remove(optionalCssClass);
+                        } else {
+                            console.log(`$ {
+                                    HL_LOG_TAG
+                                }
+
+                                : -> Warning: No CSS class provided to remove. Visual style might persist if classes are mixed.`);
+                        }
+
+                        updatedCount++;
+                    }
+                }
+            });
+
+            console.log(`$ {
+                HL_LOG_TAG
+            }
+
+            : Removal Summary -> Matched: $ {
+                foundCount
+            }
+
+            , Removed: $ {
+                removedCount
+            }
+
+            , Updated: $ {
+                updatedCount
+            }
+
+            `);
+
+            if (foundCount === 0) {
+                console.log(`$ {
+                    HL_LOG_TAG
+                }
+
+                : No exact matches found. Attempting legacy fallback.`);
+                this.removeHighlightByCfiLegacy(cfiToRemove);
+            }
+        },
+
+        removeHighlightByCfiLegacy: function (cfi) {
+            try {
+                var location = window.getNodeAndOffsetFromCfi(cfi);
+
+                if (location && location.node) {
+                    var target = location.node;
+                    if (target.nodeType === Node.TEXT_NODE) target = target.parentNode;
+
+                    if (target.tagName === "SPAN" && target.className.startsWith("user-highlight-")) {
+                        var parent = target.parentNode;
+                        while (target.firstChild) parent.insertBefore(target.firstChild, target);
+                        parent.removeChild(target);
+                        parent.normalize();
+                    }
+                }
+            } catch (e) {}
+        },
+
+        restoreHighlights: function (jsonArrayString) {
+            try {
+                var highlights = JSON.parse(jsonArrayString);
+                var self = this;
+
+                highlights.forEach(function (h) {
+                    self.applyHighlight(h.cfi, h.text, h.cssClass);
+                });
+            } catch (e) {
+                console.log(
+                    `$ {
+                    HL_LOG_TAG
+                }
+
+                : Error restoring: ` + e.message,
+                );
+            }
+        },
+
+        applyHighlight: function (cfi, text, cssClass) {
+            try {
+                var alreadyApplied = false;
+                var spans = document.querySelectorAll(`span[data-cfi]`);
+                for (var i = 0; i < spans.length; i++) {
+                    if ((spans[i].getAttribute("data-cfi") || "").split(";;").includes(cfi)) {
+                        alreadyApplied = true;
+                        break;
+                    }
+                }
+                if (alreadyApplied) return;
+
+                const location = window.getNodeAndOffsetFromCfi(cfi);
+                if (!location || !location.node) return;
+
+                let startNode = location.node;
+                let startOffset = location.offset;
+
+                if (startNode.nodeType === Node.TEXT_NODE) {
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+                    walker.currentNode = startNode;
+
+                    while (startNode && startOffset >= startNode.nodeValue.length) {
+                        if (startOffset === startNode.nodeValue.length) {
+                            const next = walker.nextNode();
+
+                            if (next) {
+                                startOffset -= startNode.nodeValue.length;
+                                startNode = next;
+                            } else {
+                                break;
+                            }
+                        } else {
+                            startOffset -= startNode.nodeValue.length;
+                            startNode = walker.nextNode();
+                        }
+                    }
+                }
+
+                // 1. Text Verification / Healing
+                if (text && text.length > 0 && startNode && startNode.nodeType === Node.TEXT_NODE) {
+                    const nodeVal = startNode.nodeValue;
+                    // Check if text matches at exact offset
+                    const substring = nodeVal.substring(startOffset, startOffset + text.length);
+
+                    // Allow for some whitespace looseness (trim comparison)
+                    if (substring !== text && substring.trim() !== text.trim()) {
+                        console.log(`$ {
+                            HL_LOG_TAG
+                        }
+
+                        : Text mismatch at CFI. Searching nearby... Expected: '${text.substring(0, 10)}...', Found: '${substring.substring(0, 10)}...' `);
+
+                        // Try finding the text in the whole node
+                        const foundIndex = nodeVal.indexOf(text);
+
+                        if (foundIndex !== -1) {
+                            console.log(`$ {
+                                HL_LOG_TAG
+                            }
+
+                            : Found text elsewhere in node. Adjusting offset from $ {
+                                startOffset
+                            }
+
+                            to $ {
+                                foundIndex
+                            }
+
+                            .`);
+                            startOffset = foundIndex;
+                        } else {
+                            // Simple fuzzy: Try finding first 20 chars
+                            const partial = text.substring(0, Math.min(text.length, 20));
+                            const partialIndex = nodeVal.indexOf(partial);
+
+                            if (partialIndex !== -1) {
+                                console.log(`$ {
+                                    HL_LOG_TAG
+                                }
+
+                                : Found partial match. Adjusting offset.`);
+                                startOffset = partialIndex;
+                            }
+                        }
+                    }
+                }
+
+                if (!startNode) return;
+
+                const range = document.createRange();
+
+                // Set Start
+                if (startNode.nodeType === Node.TEXT_NODE) {
+                    // Ensure offset is valid
+                    if (startOffset > startNode.nodeValue.length) {
+                        startOffset = Math.max(0, startNode.nodeValue.length - 1);
+                    }
+                }
+
+                range.setStart(startNode, startOffset);
+
+                const treeWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+                treeWalker.currentNode = startNode;
+
+                let currentNode = treeWalker.currentNode;
+                let remainingOffset = startOffset;
+                let remainingLen = text.length;
+                let endNode = currentNode;
+                let endOffset = startOffset;
+
+                while (remainingLen > 0 && endNode) {
+                    let avail = endNode.nodeValue.length - endOffset;
+
+                    if (avail >= remainingLen) {
+                        endOffset += remainingLen;
+                        remainingLen = 0;
+                    } else {
+                        remainingLen -= avail;
+                        endNode = treeWalker.nextNode();
+                        endOffset = 0;
+                    }
+                }
+
+                if (endNode) {
+                    range.setEnd(endNode, endOffset);
+                    var normalizedRange = this.normalizeRangeBoundaries(range);
+                    this.highlightRangeSafe(normalizedRange, cssClass, cfi);
+                }
+            } catch (e) {
+                console.log(e);
+            }
+        },
+    };
+})();
+
+(function () {
+    const TAG_AUTO_SCROLL = "AutoScrollDiagnosis";
+
+    window.autoScroll = {
+        active: false,
+        speed: 1.0,
+        accumulator: 0.0,
+        animationId: null,
+
+        start: function (speed) {
+            console.log(`$ {
+                        TAG_AUTO_SCROLL
+                    }
+
+                    : Starting auto-scroll. Speed: $ {
+                        speed
+                    }
+
+                    `);
+            this.active = true;
+            this.speed = speed || this.speed;
+            this.accumulator = 0.0;
+            if (this.animationId) cancelAnimationFrame(this.animationId);
+            this.loop();
+        },
+
+        stop: function () {
+            this.active = false;
+            if (this.animationId) {
+                cancelAnimationFrame(this.animationId);
+                this.animationId = null;
+            }
+
+            const container = document.getElementById("content-container") || document.body;
+            if (container) {
+                container.style.transform = "none";
+                window.scrollBy(0, 0);
+            }
+        },
+
+        updateSpeed: function (newSpeed) {
+            console.log(`$ {
+                        TAG_AUTO_SCROLL
+                    }
+
+                    : Speed updated to $ {
+                        newSpeed
+                    }
+
+                    `);
+            this.speed = newSpeed;
+        },
+
+        loop: function () {
+            if (!this.active) return;
+
+            this.accumulator += this.speed;
+
+            const totalPixelsToScroll = Math.floor(this.accumulator);
+
+            if (totalPixelsToScroll >= 1) {
+                const prevScrollY = window.scrollY;
+                window.scrollBy(0, totalPixelsToScroll);
+
+                this.accumulator -= totalPixelsToScroll;
+
+                const scrollY = window.scrollY;
+                const docHeight = document.documentElement.scrollHeight;
+                const innerH = window.innerHeight;
+                const isAtBottom = scrollY + innerH >= docHeight - 3;
+                const isStuck = totalPixelsToScroll > 0 && scrollY === prevScrollY && prevScrollY > 0;
+
+                if (isAtBottom || isStuck) {
+                    this.stop();
+                    if (window.AutoScrollBridge && window.AutoScrollBridge.onChapterEnd) {
+                        window.AutoScrollBridge.onChapterEnd();
+                    }
+                    return;
+                }
+            }
+
+            const container = document.getElementById("content-container") || document.body;
+            if (container) {
+                container.style.transform = `translate3d(0, -${this.accumulator}px, 0)`;
+            }
+
+            this.animationId = requestAnimationFrame(this.loop.bind(this));
+        },
+    };
+})();
