@@ -8,6 +8,11 @@
 
 </div>
 
+## 下载
+
+- 最新版本下载：[GitHub Releases](https://github.com/saki-ccp/md-reader/releases/latest)
+- 历史版本与全部安装包：[Releases 页面](https://github.com/saki-ccp/md-reader/releases)
+
 ## 项目说明
 
 本项目基于上游开源项目 [Aryan-Raj3112/episteme](https://github.com/Aryan-Raj3112/episteme) 进行二次开发与定向精简。
