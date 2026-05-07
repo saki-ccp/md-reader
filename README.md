@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/ICON.png" alt="md-reader icon" width="120" />
+<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="md-reader icon" width="120" />
 
 # md-reader
 
