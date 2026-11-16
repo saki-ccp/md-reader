@@ -5,6 +5,10 @@ import android.content.SharedPreferences
 import android.content.res.Resources
 import android.util.Log
 import androidx.work.WorkManager
+import androidx.lifecycle.viewModelScope
+import com.aryan.reader.paginatedreader.data.BookCacheDatabase
+import com.aryan.reader.tts.TtsController
+import com.aryan.reader.tts.TtsPlaybackManager
 import com.aryan.reader.data.*
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import io.mockk.*
@@ -12,17 +16,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModelTest {
+
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
 
     private val testDispatcher = StandardTestDispatcher()
 
@@ -53,6 +64,9 @@ class MainViewModelTest {
         every { mockApplication.applicationContext } returns mockApplication
         every { mockApplication.getSharedPreferences(any(), any()) } returns mockPrefs
         every { mockApplication.resources } returns mockResources
+        every { mockApplication.filesDir } returns temporaryFolder.newFolder("files")
+        every { mockApplication.cacheDir } returns temporaryFolder.newFolder("cache")
+        every { mockApplication.getString(any()) } answers { "resource-${firstArg<Int>()}" }
         every { mockPrefs.edit() } returns mockEditor
 
         every { mockPrefs.getString(any(), any()) } answers { secondArg() as String? }
@@ -60,11 +74,13 @@ class MainViewModelTest {
         every { mockPrefs.getInt(any(), any()) } answers { secondArg() as Int }
         every { mockPrefs.getFloat(any(), any()) } answers { secondArg() as Float }
 
-        mockkStatic(AppDatabase::class)
+        mockkObject(AppDatabase.Companion)
         val mockDb = mockk<AppDatabase>(relaxed = true)
         every { AppDatabase.getDatabase(any()) } returns mockDb
+        mockkObject(BookCacheDatabase.Companion)
+        every { BookCacheDatabase.getDatabase(any()) } returns mockk(relaxed = true)
 
-        mockkStatic(WorkManager::class)
+        mockkObject(WorkManager.Companion)
         every { WorkManager.getInstance(any()) } returns mockk(relaxed = true)
         mockkStatic(PDFBoxResourceLoader::class)
         every { PDFBoxResourceLoader.init(any()) } just Runs
@@ -76,6 +92,9 @@ class MainViewModelTest {
         mockkConstructor(FirestoreRepository::class)
         mockkConstructor(FeedbackRepository::class)
         mockkConstructor(FontsRepository::class)
+        mockkConstructor(TtsController::class)
+        every { anyConstructed<TtsController>().ttsState } returns MutableStateFlow(TtsPlaybackManager.TtsState())
+        every { anyConstructed<TtsController>().connect() } just Runs
 
         every { anyConstructed<BillingClientWrapper>().proUpgradeState } returns billingStateFlow
         every { anyConstructed<AuthRepository>().getSignedInUser() } returns null
@@ -88,6 +107,7 @@ class MainViewModelTest {
 
         coEvery { anyConstructed<RecentFilesRepository>().migrateLegacyShelvesToRoom() } just Runs
         coEvery { anyConstructed<RecentFilesRepository>().seedTagsIfEmpty(any()) } just Runs
+        coEvery { anyConstructed<RecentFilesRepository>().getAllFilesForSync() } returns emptyList()
 
         every { anyConstructed<FontsRepository>().getAllFonts() } returns customFontsFlow
 
@@ -96,6 +116,7 @@ class MainViewModelTest {
 
     @After
     fun tearDown() {
+        if (::viewModel.isInitialized) viewModel.viewModelScope.cancel()
         Dispatchers.resetMain()
         unmockkAll()
     }
@@ -108,9 +129,9 @@ class MainViewModelTest {
 
         viewModel.setSearchActive(true)
         viewModel.onSearchQueryChange("Moby Dick")
-
-        assertEquals("Moby Dick", viewModel.uiState.value.searchQuery)
-        assertTrue(viewModel.uiState.value.isSearchActive)
+        val state = viewModel.uiState.first { it.searchQuery == "Moby Dick" }
+        assertEquals("Moby Dick", state.searchQuery)
+        assertTrue(state.isSearchActive)
     }
 
     @Test
@@ -121,10 +142,11 @@ class MainViewModelTest {
 
         viewModel.setSearchActive(true)
         viewModel.onSearchQueryChange("Android")
+        viewModel.uiState.first { it.searchQuery == "Android" }
         viewModel.setSearchActive(false)
-
-        assertEquals("", viewModel.uiState.value.searchQuery)
-        assertFalse(viewModel.uiState.value.isSearchActive)
+        val state = viewModel.uiState.first { !it.isSearchActive }
+        assertEquals("", state.searchQuery)
+        assertFalse(state.isSearchActive)
     }
 
     @Test
@@ -134,8 +156,8 @@ class MainViewModelTest {
         }
 
         viewModel.setAppThemeMode(AppThemeMode.DARK)
-
-        assertEquals(AppThemeMode.DARK, viewModel.uiState.value.appThemeMode)
+        val state = viewModel.uiState.first { it.appThemeMode == AppThemeMode.DARK }
+        assertEquals(AppThemeMode.DARK, state.appThemeMode)
         verify { mockEditor.putString("app_theme_mode", AppThemeMode.DARK.name) }
     }
 
@@ -146,8 +168,8 @@ class MainViewModelTest {
         }
 
         viewModel.setTabsEnabled(true)
-
-        assertTrue(viewModel.uiState.value.isTabsEnabled)
+        val state = viewModel.uiState.first { it.isTabsEnabled }
+        assertTrue(state.isTabsEnabled)
         verify { mockEditor.putBoolean("tabs_enabled", true) }
     }
 
@@ -158,12 +180,11 @@ class MainViewModelTest {
         }
 
         viewModel.showBanner("Test Message", isError = true)
-
-        val currentBanner = viewModel.uiState.value.bannerMessage
+        val currentBanner = viewModel.uiState.first { it.bannerMessage != null }.bannerMessage
         assertEquals("Test Message", currentBanner?.message)
         assertTrue(currentBanner?.isError == true)
 
         viewModel.bannerMessageShown()
-        assertEquals(null, viewModel.uiState.value.bannerMessage)
+        assertEquals(null, viewModel.uiState.first { it.bannerMessage == null }.bannerMessage)
     }
 }

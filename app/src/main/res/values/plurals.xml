@@ -14,7 +14,7 @@
 
     <!-- Shown when deleting multiple shelves. %1$d = number of shelves. -->
     <plurals name="shelf_count">
-        <item quantity="one">%1$d shelf</item>
+        <item quantity="one">%1$d group</item>
         <item quantity="other">%1$d shelves</item>
     </plurals>
 
@@ -49,8 +49,8 @@
 
     <!-- Confirmation dialog. %1$d = count of books; %2$s = shelf name. -->
     <plurals name="dialog_remove_from_shelf_desc">
-        <item quantity="one">Are you sure you want to remove %1$d book from the \'%2$s\' shelf? The book will remain in your library and appear under Unshelved.</item>
-        <item quantity="other">Are you sure you want to remove %1$d books from the \'%2$s\' shelf? The books will remain in your library and appear under Unshelved.</item>
+        <item quantity="one">Remove %1$d document from “%2$s”? The document, reading progress, annotations and other groups will be kept.</item>
+        <item quantity="other">Remove %1$d documents from “%2$s”? Documents, reading progress, annotations and other groups will be kept.</item>
     </plurals>
 
     <!-- %1$d = number of books removed from the library. -->

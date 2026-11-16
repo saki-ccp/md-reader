@@ -179,13 +179,12 @@ class LibraryStateProjector(
             }
         }
 
-        dbShelves.forEach { shelfEntity ->
+        dbShelves.filterNot { it.isDeleted }.forEach { shelfEntity ->
             if (shelfEntity.isSmart && shelfEntity.smartRulesJson != null) {
                 val rules = SmartCollectionEngine.fromJson(shelfEntity.smartRulesJson)
                 if (rules != null) {
                     val matchingBooks = allLibraryFiles.filter { SmartCollectionEngine.evaluate(it, rules) }
                     allShelves.add(Shelf(shelfEntity.id, shelfEntity.name, ShelfType.SMART, sortFiles(matchingBooks, sortOrder)))
-                    shelvedBookIds.addAll(matchingBooks.map { it.bookId })
                 }
             } else {
                 val bookIdsInShelf = shelfRefsByShelfId[shelfEntity.id].orEmpty()
@@ -213,7 +212,6 @@ class LibraryStateProjector(
             .filter { it.value.size >= 2 }
             .map { (series, books) ->
                 val sortedSeries = books.sortedBy { it.seriesIndex ?: 999.0 }
-                shelvedBookIds.addAll(books.map { it.bookId })
                 Shelf("series_$series", series, ShelfType.SERIES, sortedSeries)
             }
         allShelves.addAll(seriesShelves)
@@ -222,11 +220,7 @@ class LibraryStateProjector(
             allLibraryFiles = allLibraryFiles,
             syncedFolders = syncedFolders,
             sortOrder = sortOrder
-        ).also { shelves ->
-            shelves.forEach { shelf ->
-                shelvedBookIds.addAll(shelf.books.map { it.bookId })
-            }
-        }
+        )
         allShelves.addAll(folderShelves)
 
         val unshelvedBooks = allLibraryFiles.filter { it.bookId !in shelvedBookIds }

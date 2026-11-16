@@ -299,7 +299,7 @@ fun HomeScreen(
                         onUpgradeClick = {
                             scope.launch {
                                 drawerState.close()
-                                navController.navigate(AppDestinations.PRO_SCREEN_ROUTE)
+                                navController.navigate(AppDestinations.AI_SETTINGS_SCREEN_ROUTE)
                             }
                         },
                         onSyncUpsellClick = {
@@ -366,6 +366,7 @@ fun HomeScreen(
                             ContextualTopAppBar(
                                 selectedItemCount = selectedContextItems.size,
                                 onNavIconClick = { viewModel.clearContextualAction() },
+                                onGroupClick = { viewModel.openGroupSelection(selectedContextItems.map { it.bookId }.toSet()) },
                                 onTagClick = {
                                     viewModel.openTagSelection(selectedContextItems.map { it.bookId }.toSet())
                                 },
@@ -470,7 +471,7 @@ fun HomeScreen(
                     if (showUpgradeDialog) {
                         UpgradeDialog(onDismiss = { showUpgradeDialog = false }, onConfirm = {
                             showUpgradeDialog = false
-                            navController.navigate(AppDestinations.PRO_SCREEN_ROUTE)
+                            navController.navigate(AppDestinations.AI_SETTINGS_SCREEN_ROUTE)
                         })
                     }
 
@@ -1964,15 +1965,6 @@ private fun CustomBackgroundSection(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            // 把 URI 持久化到内部存储，避免重启后失效
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            } catch (_: SecurityException) {
-                // 部分文件提供方不支持持久化授权，忽略即可
-            }
             onBackgroundUriChanged(uri.toString())
         }
     }

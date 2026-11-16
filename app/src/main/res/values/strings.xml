@@ -124,9 +124,9 @@
     <string name="filter_folders">Folders: %1$d</string>
     <!-- Active read-status filter chip label. %1$s = status name (e.g. "Unread", "In Progress"). -->
     <string name="filter_status">Status: %1$s</string>
-    <string name="tab_all_books">All Books</string>
-    <string name="tab_shelves">Shelves</string>
-    <string name="tab_folders">Folders</string>
+    <string name="tab_all_books">All documents</string>
+    <string name="tab_shelves">Groups</string>
+    <string name="tab_folders">Import folders</string>
     <string name="tab_catalogs">Catalogs</string>
     <!-- Shown when the library search has no matches. %1$s = the user\'s search query. -->
     <string name="no_results_found">No results found for \"%1$s\"</string>
@@ -134,31 +134,31 @@
     <!-- Floating action button label to add a file to the library. -->
     <string name="fab_add_file">Add file</string>
     <!-- Floating action button label to create a new shelf. -->
-    <string name="fab_new_shelf">New shelf</string>
-    <string name="create_new_shelf">Create New Shelf</string>
-    <string name="shelf_name_hint">Shelf Name</string>
+    <string name="fab_new_shelf">New group</string>
+    <string name="create_new_shelf">New group</string>
+    <string name="shelf_name_hint">Group name</string>
     <string name="action_create">Create</string>
-    <string name="menu_rename_shelf">Rename shelf</string>
-    <string name="menu_delete_shelf">Delete shelf</string>
+    <string name="menu_rename_shelf">Rename group</string>
+    <string name="menu_delete_shelf">Delete group</string>
     <!-- Floating action button label shown inside a shelf to add books to it. -->
-    <string name="fab_add_books">Add books</string>
-    <string name="shelf_empty">This shelf is empty</string>
+    <string name="fab_add_books">Add documents</string>
+    <string name="shelf_empty">No documents yet. Add your imported course notes.</string>
     <!-- FAB label shown while adding books. %1$s = the name of the target shelf. -->
     <string name="add_to_shelf">Add to %1$s</string>
     <!-- FAB button label showing count of selected books. %1$d = number selected. Intentionally all-caps. -->
     <string name="fab_add_count">ADD (%1$d)</string>
-    <string name="no_unshelved_books">No unshelved books to add</string>
-    <string name="all_books_in_shelf">All books are already in this shelf</string>
-    <string name="dialog_rename_shelf">Rename Shelf</string>
-    <string name="dialog_delete_shelf">Delete Shelf?</string>
+    <string name="no_unshelved_books">No ungrouped documents to add. Try All documents.</string>
+    <string name="all_books_in_shelf">All documents are already in this group.</string>
+    <string name="dialog_rename_shelf">Rename group</string>
+    <string name="dialog_delete_shelf">Delete group?</string>
     <!-- Confirmation dialog. %1$s = name of the shelf being deleted. -->
-    <string name="dialog_delete_shelf_desc">Are you sure you want to delete the \'%1$s\' shelf? All books will be moved to Unshelved.</string>
-    <string name="dialog_remove_from_shelf">Remove from Shelf?</string>
+    <string name="dialog_delete_shelf_desc">Delete the group “%1$s”? Documents, reading progress, annotations and other groups will be kept.</string>
+    <string name="dialog_remove_from_shelf">Remove from group?</string>
 
     <!-- Dialog title when deleting multiple shelves. %1$s = shelf name(s). -->
     <string name="dialog_delete_shelves">Delete %1$s?</string>
     <!-- Dialog body when deleting multiple shelves. %1$d = count of selected shelves; %2$s = "shelf" or "shelves" (resolved from a plural). -->
-    <string name="dialog_delete_shelves_desc">Are you sure you want to delete the %1$d selected %2$s? All books within will be moved to Unshelved.</string>
+    <string name="dialog_delete_shelves_desc">Delete the selected %2$s? Documents, reading progress, annotations and other groups will be kept.</string>
 
     <!-- Folder Sync -->
     <string name="sync_local_folders">Sync Local Folders</string>
@@ -521,7 +521,7 @@
     <!-- EPUB is a file format name — do not translate. %1$s = error message from the system. -->
     <string name="error_load_epub">Failed to load EPUB: %1$s</string>
     <string name="banner_file_deleted_from_folder">File deleted from folder. Removed from library.</string>
-    <string name="error_shelf_exists">A shelf with that name already exists.</string>
+    <string name="error_shelf_exists">A group with this name already exists.</string>
     <string name="banner_deleting_all_devices">Deleting from all devices…</string>
     <string name="banner_deletion_complete">Deletion complete.</string>
     <string name="error_cloud_sync_failed_deleted_locally">Cloud sync failed, deleted locally.</string>
@@ -1133,15 +1133,15 @@
     <string name="content_desc_sort">Sort</string>
     <string name="content_desc_close_search">Close search</string>
     <string name="content_desc_clear_query">Clear query</string>
-    <string name="content_desc_search_shelf">Search shelf</string>
+    <string name="content_desc_search_shelf">Search group</string>
     <!-- Accessibility label. %1$s = shelf name. -->
-    <string name="content_desc_shelf_cover">%1$s shelf cover</string>
+    <string name="content_desc_shelf_cover">%1$s group cover</string>
     <string name="theme_preserve_image_colors">Preserve Image Colors</string>
     <string name="theme_preserve_image_colors_desc">Keep original image colors when theme changes</string>
 
     <!-- Enum labels used by library filters, sorting, and app theme controls. -->
-    <string name="add_books_source_unshelved">Unshelved</string>
-    <string name="add_books_source_all_books">All Books</string>
+    <string name="add_books_source_unshelved">Ungrouped</string>
+    <string name="add_books_source_all_books">All documents</string>
     <string name="app_theme_mode_system">System</string>
     <string name="app_theme_mode_light">Light</string>
     <string name="app_theme_mode_dark">Dark</string>
@@ -1315,4 +1315,11 @@
     <string name="custom_bg_alpha">Background Opacity</string>
     <string name="custom_bg_desc">Choose a local image as the app background and adjust its opacity.</string>
     <string name="custom_bg_no_image">No background image selected</string>
+    <string name="group_add_documents">Add to group</string>
+    <string name="group_selection_hint">Choose a group, or create one below. Documents can belong to multiple groups.</string>
+    <string name="group_create_and_add">Create and add</string>
+    <string name="group_ungrouped">Ungrouped</string>
+    <string name="group_documents_added">Documents added to group</string>
+    <string name="group_save_failed">Could not save the group. Please try again.</string>
+    <string name="background_import_failed">Could not save the background image. Please choose it again.</string>
 </resources>

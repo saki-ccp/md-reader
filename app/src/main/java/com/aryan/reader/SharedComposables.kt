@@ -73,6 +73,9 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.SelectAll
@@ -234,8 +237,10 @@ fun ContextualTopAppBar(
     onTagClick: (() -> Unit)? = null,
     onSelectAllClick: (() -> Unit)? = null,
     onPinClick: (() -> Unit)? = null,
-    onDeleteClick: () -> Unit
+    onGroupClick: (() -> Unit)? = null,
+    onDeleteClick: (() -> Unit)? = null
 ) {
+    var showMoreActions by remember { mutableStateOf(false) }
     CustomTopAppBar(
         title = { Text(stringResource(R.string.items_selected_count, selectedItemCount)) },
         navigationIcon = {
@@ -244,7 +249,12 @@ fun ContextualTopAppBar(
             }
         },
         actions = {
-            if (onTagClick != null) {
+            if (onGroupClick != null) {
+                IconButton(onClick = onGroupClick) {
+                    Icon(Icons.Filled.Folder, contentDescription = stringResource(R.string.group_add_documents))
+                }
+            }
+            if (onGroupClick == null && onTagClick != null) {
                 IconButton(onClick = onTagClick) {
                     Icon(painterResource(id = R.drawable.tag), contentDescription = stringResource(R.string.content_desc_tag))
                 }
@@ -254,18 +264,47 @@ fun ContextualTopAppBar(
                     Icon(Icons.Filled.PushPin, contentDescription = stringResource(R.string.pin_unpin))
                 }
             }
-            if (selectedItemCount == 1 && onInfoClick != null) {
+            if (onGroupClick == null && selectedItemCount == 1 && onInfoClick != null) {
                 IconButton(onClick = onInfoClick) {
                     Icon(Icons.Filled.Info, contentDescription = stringResource(R.string.info))
                 }
             }
-            if (onSelectAllClick != null) {
+            if (onGroupClick == null && onSelectAllClick != null) {
                 IconButton(onClick = onSelectAllClick) {
                     Icon(Icons.Filled.SelectAll, contentDescription = stringResource(R.string.select_all))
                 }
             }
-            IconButton(onClick = onDeleteClick) {
-                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete))
+            if (onDeleteClick != null) {
+                IconButton(onClick = onDeleteClick) {
+                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete))
+                }
+            }
+            if (onGroupClick != null && (onTagClick != null || onInfoClick != null || onSelectAllClick != null)) {
+                Box {
+                    IconButton(onClick = { showMoreActions = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.content_desc_more_options))
+                    }
+                    DropdownMenu(expanded = showMoreActions, onDismissRequest = { showMoreActions = false }) {
+                        if (onTagClick != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.content_desc_tag)) },
+                                onClick = { showMoreActions = false; onTagClick() }
+                            )
+                        }
+                        if (selectedItemCount == 1 && onInfoClick != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.info)) },
+                                onClick = { showMoreActions = false; onInfoClick() }
+                            )
+                        }
+                        if (onSelectAllClick != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.select_all)) },
+                                onClick = { showMoreActions = false; onSelectAllClick() }
+                            )
+                        }
+                    }
+                }
             }
         }
     )

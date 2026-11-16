@@ -36,8 +36,8 @@ jobs:
       - name: Grant execute permission
         run: chmod +x ./gradlew
 
-      - name: Assemble OSS Debug APK
-        run: ./gradlew :app:assembleOssDebug --no-daemon --stacktrace
+      - name: Test and assemble OSS Debug APK
+        run: ./gradlew :app:testOssDebugUnitTest :app:assembleOssDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

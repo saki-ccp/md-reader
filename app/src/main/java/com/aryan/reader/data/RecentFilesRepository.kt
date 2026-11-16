@@ -89,10 +89,21 @@ class RecentFilesRepository(private val context: Context) {
         AppDatabase.getDatabase(context).shelfDao().insertShelf(shelf)
     }
 
+    suspend fun addShelfWithBooks(shelf: ShelfEntity, bookIds: List<String>) = withContext(Dispatchers.IO) {
+        database.withTransaction {
+            database.shelfDao().insertShelf(shelf)
+            database.shelfDao().insertBookShelfCrossRefs(bookIds.map { BookShelfCrossRef(it, shelf.id, shelf.createdAt) })
+        }
+    }
+
     suspend fun addBooksToShelf(shelfId: String, bookIds: List<String>) = withContext(Dispatchers.IO) {
-        val timestamp = System.currentTimeMillis()
-        val crossRefs = bookIds.map { BookShelfCrossRef(it, shelfId, timestamp) }
-        AppDatabase.getDatabase(context).shelfDao().insertBookShelfCrossRefs(crossRefs)
+        database.withTransaction {
+            val shelf = database.shelfDao().getShelfById(shelfId)
+            check(shelf != null && !shelf.isDeleted && !shelf.isSmart) { "Group is unavailable" }
+            val timestamp = System.currentTimeMillis()
+            val crossRefs = bookIds.map { BookShelfCrossRef(it, shelfId, timestamp) }
+            database.shelfDao().insertBookShelfCrossRefs(crossRefs)
+        }
     }
 
     suspend fun renameShelf(shelfId: String, newName: String) = withContext(Dispatchers.IO) {

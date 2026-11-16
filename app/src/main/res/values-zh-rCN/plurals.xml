@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="book_count">
+        <item quantity="other">%1$d 份文档</item>
+    </plurals>
+    <plurals name="shelf_count">
+        <item quantity="other">%1$d 个分组</item>
+    </plurals>
+    <plurals name="dialog_remove_from_shelf_desc">
+        <item quantity="other">确定从“%2$s”中移除 %1$d 份文档吗？文档、阅读进度和批注均会保留，其他分组不受影响。</item>
+    </plurals>
+</resources>

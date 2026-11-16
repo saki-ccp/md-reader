@@ -1,7 +1,6 @@
 // src\oss
 package com.aryan.reader
 
-import android.app.Activity
 import android.content.Context
 import com.aryan.reader.data.ProductDetailsEntity
 import com.aryan.reader.data.PurchaseEntity
@@ -35,14 +34,7 @@ class BillingClientWrapper(
         // No-op
     }
 
-    fun launchPurchaseFlow(activity: Activity, productId: String = PRO_LIFETIME_PRODUCT_ID) {
-        _proUpgradeState.value = _proUpgradeState.value.copy(error = "Not available in Open Source version")
-    }
     fun consumePurchase(purchaseToken: String) {}
-
-    fun clearError() {
-        _proUpgradeState.value = _proUpgradeState.value.copy(error = null)
-    }
 
     fun clearVerificationState() {
         _proUpgradeState.value = _proUpgradeState.value.copy(isVerifying = false)

@@ -101,32 +101,32 @@
     <string name="filter_types">类型：%1$s</string>
     <string name="filter_folders">文件夹：%1$d</string>
     <string name="filter_status">状态：%1$s</string>
-    <string name="tab_all_books">全部书籍</string>
-    <string name="tab_shelves">书架</string>
-    <string name="tab_folders">文件夹</string>
+    <string name="tab_all_books">全部文档</string>
+    <string name="tab_shelves">分组</string>
+    <string name="tab_folders">导入目录</string>
     <string name="tab_catalogs">书目</string>
     <string name="no_results_found">未找到与“%1$s”匹配的结果</string>
-    <string name="library_empty_desc">从设备中选择 PDF、EPUB、MOBI 或 AZW3 文件开始阅读。</string>
+    <string name="library_empty_desc">导入微信保存的笔记或其他本地文档，开始阅读并按课程分组。</string>
     <string name="fab_add_file">添加文件</string>
-    <string name="fab_new_shelf">新建书架</string>
-    <string name="create_new_shelf">新建书架</string>
-    <string name="shelf_name_hint">书架名称</string>
+    <string name="fab_new_shelf">新建分组</string>
+    <string name="create_new_shelf">新建分组</string>
+    <string name="shelf_name_hint">分组名称，例如：高等数学</string>
     <string name="action_create">创建</string>
-    <string name="menu_rename_shelf">重命名书架</string>
-    <string name="menu_delete_shelf">删除书架</string>
-    <string name="fab_add_books">添加书籍</string>
-    <string name="shelf_empty">该书架为空</string>
+    <string name="menu_rename_shelf">重命名分组</string>
+    <string name="menu_delete_shelf">删除分组</string>
+    <string name="fab_add_books">添加文档</string>
+    <string name="shelf_empty">暂无文档，可以添加已导入的课程笔记</string>
     <string name="add_to_shelf">添加到 %1$s</string>
     <string name="fab_add_count">添加（%1$d）</string>
-    <string name="no_unshelved_books">没有可添加的未上架书籍</string>
-    <string name="all_books_in_shelf">所有书籍均已在该书架</string>
-    <string name="dialog_rename_shelf">重命名书架</string>
-    <string name="dialog_delete_shelf">删除书架？</string>
-    <string name="dialog_delete_shelf_desc">确定要删除“%1$s”书架吗？该书架内的全部书籍将被移动至“未上架”。</string>
-    <string name="dialog_remove_from_shelf">从书架中移除？</string>
+    <string name="no_unshelved_books">没有可添加的未分组文档，可切换到全部文档</string>
+    <string name="all_books_in_shelf">全部文档均已加入该分组</string>
+    <string name="dialog_rename_shelf">重命名分组</string>
+    <string name="dialog_delete_shelf">删除分组？</string>
+    <string name="dialog_delete_shelf_desc">确定删除“%1$s”分组吗？文档、阅读进度和批注均会保留，其他分组不受影响。</string>
+    <string name="dialog_remove_from_shelf">从分组中移除？</string>
 
     <string name="dialog_delete_shelves">删除 %1$s？</string>
-    <string name="dialog_delete_shelves_desc">确定要删除所选的 %1$d 个%2$s吗？其中的全部书籍将被移动至“未上架”。</string>
+    <string name="dialog_delete_shelves_desc">确定删除所选的%2$s吗？文档、阅读进度和批注均会保留，其他分组不受影响。</string>
 
     <!-- 文件夹同步 -->
     <string name="sync_local_folders">同步本地文件夹</string>
@@ -409,7 +409,7 @@
     <string name="error_load_mobi">加载 MOBI 失败：%1$s</string>
     <string name="error_load_epub">加载 EPUB 失败：%1$s</string>
     <string name="banner_file_deleted_from_folder">文件已从文件夹删除，已从书库中移除。</string>
-    <string name="error_shelf_exists">已存在同名书架。</string>
+    <string name="error_shelf_exists">已存在同名分组。</string>
     <string name="banner_deleting_all_devices">正在从所有设备删除…</string>
     <string name="banner_deletion_complete">删除完成。</string>
     <string name="error_cloud_sync_failed_deleted_locally">云端同步失败，已在本地删除。</string>
@@ -888,14 +888,14 @@
     <string name="content_desc_sort">排序</string>
     <string name="content_desc_close_search">关闭搜索</string>
     <string name="content_desc_clear_query">清除关键词</string>
-    <string name="content_desc_search_shelf">搜索书架</string>
-    <string name="content_desc_shelf_cover">%1$s 书架封面</string>
+    <string name="content_desc_search_shelf">搜索分组</string>
+    <string name="content_desc_shelf_cover">%1$s 分组封面</string>
     <string name="theme_preserve_image_colors">保留图片原色</string>
     <string name="theme_preserve_image_colors_desc">切换主题时保留图片的原始颜色</string>
 
     <!-- 书库筛选、排序与主题枚举标签 -->
-    <string name="add_books_source_unshelved">未上架</string>
-    <string name="add_books_source_all_books">全部书籍</string>
+    <string name="add_books_source_unshelved">未分组</string>
+    <string name="add_books_source_all_books">全部文档</string>
     <string name="app_theme_mode_system">跟随系统</string>
     <string name="app_theme_mode_light">浅色</string>
     <string name="app_theme_mode_dark">深色</string>
@@ -1055,4 +1055,11 @@
     <string name="custom_bg_alpha">背景透明度</string>
     <string name="custom_bg_desc">选一张本地图片作为应用背景，并调整透明度。</string>
     <string name="custom_bg_no_image">尚未设置背景图</string>
+    <string name="group_add_documents">添加到分组</string>
+    <string name="group_selection_hint">选择已有分组，或在下方新建。同一文档可以加入多个分组。</string>
+    <string name="group_create_and_add">新建并添加</string>
+    <string name="group_ungrouped">未分组</string>
+    <string name="group_documents_added">已添加到分组</string>
+    <string name="group_save_failed">保存分组失败，请重试。</string>
+    <string name="background_import_failed">保存背景图片失败，请重新选择。</string>
 </resources>

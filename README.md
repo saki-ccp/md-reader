@@ -50,6 +50,8 @@
 
 - 本地文件导入
 - 最近阅读 / 书库管理
+- 文档分组：在“书库 → 分组”中新建课程分组，或长按文档、多选后点击文件夹图标，加入已有分组或新建分组
+- 同一文档可加入多个分组；从分组移除文档或删除分组时，原文档、阅读进度和批注均会保留
 - 适合作为日常文档查看器与轻量阅读器使用
 
 ### 3. 自定义背景
@@ -77,6 +79,7 @@
 
 - JDK 21
 - Android SDK
+- NDK 和 CMake 3.22.1（用于编译 PDF、MOBI 和字体相关原生库）
 - 建议使用最新版 Android Studio 稳定版
 
 ### 调试构建
@@ -90,6 +93,14 @@
 ```text
 app/build/outputs/apk/oss/debug/md-reader-v<version>-debug.apk
 ```
+
+## 测试
+
+```bash
+./gradlew :app:testOssDebugUnitTest
+```
+
+GitHub Actions 会先运行单元测试，再构建调试 APK。发布安装包放在 GitHub Releases，源码仓库不收录 APK 或签名密钥。
 
 ## 许可证
 

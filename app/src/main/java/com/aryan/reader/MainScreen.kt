@@ -117,6 +117,17 @@ fun MainScreen(
             }
         }
 
+        if (uiState.booksPendingGrouping.isNotEmpty()) {
+            BookGroupSelectionDialog(
+                shelves = uiState.shelves.filter { it.type == ShelfType.MANUAL && it.id != "unshelved" },
+                isSaving = uiState.isSavingGroup,
+                error = uiState.groupSaveError,
+                onSelect = viewModel::addSelectedBooksToGroup,
+                onCreate = viewModel::createGroupForSelectedBooks,
+                onDismiss = viewModel::closeGroupSelection
+            )
+        }
+
         if (uiState.showTagSelectionDialogFor.isNotEmpty()) {
             TagSelectionBottomSheet(
                 allTags = uiState.allTags,

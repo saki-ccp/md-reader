@@ -104,7 +104,7 @@ class SingleFileImporter(private val context: Context) {
                 writer.write("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<title>${originalBookNameHint}</title>\n")
 
                 if (isCsv) {
-                    writer.write("<style>\ntable { border-collapse: collapse; width: 100%; font-family: sans-serif; }\nth, td { border: 1px solid currentColor; padding: 8px; }\n</style>\n")
+                    writer.write("<style>\ntable { border-collapse: collapse; width: 100%; font-family: sans-serif; }\nth, td { border: 1px solid currentColor; padding: 8px; white-space: pre-wrap; }\n</style>\n")
                     writer.write("</head>\n<body>\n<div style='overflow-x:auto;'>\n<table>\n")
                 } else {
                     writer.write("<style>\npre { padding: 10px; overflow-x: auto; font-family: monospace; white-space: pre-wrap; word-wrap: break-word; }\n</style>\n")
@@ -114,38 +114,20 @@ class SingleFileImporter(private val context: Context) {
                 val delimiter = if (originalBookNameHint.lowercase().let { it.endsWith(".tsv") || it.endsWith(".tsv.txt") }) '\t' else ','
 
                 inputStream.bufferedReader().use { reader ->
-                    var line = reader.readLine()
-                    while (line != null) {
-                        if (isCsv) {
+                    if (isCsv) {
+                        readDelimitedRows(reader, delimiter) { cells ->
                             writer.write("<tr>")
-                            val current = StringBuilder()
-                            var inQuotes = false
-
-                            for (char in line) {
-                                when (char) {
-                                    '\"' -> {
-                                        inQuotes = !inQuotes
-                                    }
-                                    delimiter if !inQuotes -> {
-                                        val escaped =
-                                            current.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                                        writer.write("<td>$escaped</td>")
-                                        current.clear()
-                                    }
-                                    else -> {
-                                        current.append(char)
-                                    }
-                                }
+                            cells.forEach { cell ->
+                                val escaped = cell.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                                writer.write("<td>$escaped</td>")
                             }
-                            val escapedFinal = current.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                            writer.write("<td>$escapedFinal</td></tr>\n")
-
-                        } else {
-                            // Plain code/log text escaping
+                            writer.write("</tr>\n")
+                        }
+                    } else {
+                        reader.forEachLine { line ->
                             val escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                             writer.write("$escaped\n")
                         }
-                        line = reader.readLine()
                     }
                 }
 

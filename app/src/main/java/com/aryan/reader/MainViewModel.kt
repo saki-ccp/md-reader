@@ -162,6 +162,7 @@ open class MainViewModel(application: Application) : AndroidViewModel(applicatio
     private val odtParser by lazy { com.aryan.reader.epub.OdtParser(appContext) }
     private val singleFileImporter by lazy { SingleFileImporter(appContext) }
     private val bookImporter by lazy { BookImporter(appContext) }
+    private var backgroundImportJob: kotlinx.coroutines.Job? = null
     private val pageLayoutRepository by lazy { PageLayoutRepository(appContext) }
     private val pdfRichTextRepository by lazy { com.aryan.reader.pdf.PdfRichTextRepository(appContext) }
     private val pdfTextBoxRepository by lazy { PdfTextBoxRepository(appContext) }
@@ -507,7 +508,7 @@ open class MainViewModel(application: Application) : AndroidViewModel(applicatio
             libraryScreenStartPage = prefs.getInt(
                 KEY_LIBRARY_SCREEN_START_PAGE,
                 0
-            ).coerceIn(0, if (BuildConfig.IS_OFFLINE) 2 else 3),
+            ).coerceIn(0, 2),
             viewingShelfId = prefs.getString(KEY_LAST_VIEWING_SHELF_ID, null),
             isAddingBooksToShelf = prefs.getBoolean(KEY_LAST_ADDING_BOOKS_TO_SHELF, false),
             currentUser = authRepository.getSignedInUser(),
@@ -880,45 +881,6 @@ open class MainViewModel(application: Application) : AndroidViewModel(applicatio
                 it.copy(isSearchActive = true)
             } else {
                 it.copy(isSearchActive = false, searchQuery = "")
-            }
-        }
-    }
-
-    fun streamOpdsBook(
-        bookId: String,
-        title: String,
-        urlTemplate: String,
-        pageCount: Int,
-        catalogId: String?
-    ) {
-        val encodedUrl = Uri.encode(urlTemplate)
-        val safeId = Uri.encode(bookId)
-        val catId = catalogId?.let { "&catalogId=${Uri.encode(it)}" } ?: ""
-
-        val uriString = "opds-pse://stream?id=$safeId&count=$pageCount&url=$encodedUrl$catId"
-        openBook(uriString.toUri(), bookId, FileType.CBZ, title)
-    }
-
-    fun deleteStreamedBooksForCatalog(catalogId: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val filesToDelete = recentFilesRepository.getAllFilesForSync().filter {
-                it.uriString?.contains("catalogId=$catalogId") == true
-            }
-            if (filesToDelete.isNotEmpty()) {
-                val ids = filesToDelete.map { it.bookId }
-                ids.forEach { bookId ->
-                    cleanupBookDataLocally(bookId)
-                    try {
-                        val cacheDir = File(appContext.cacheDir, "opds_stream_${bookId.hashCode()}")
-                        if (cacheDir.exists()) cacheDir.deleteRecursively()
-                    } catch (e: Exception) {
-                        Timber.e(e, "Failed to clean stream cache for $bookId")
-                    }
-                }
-                recentFilesRepository.deleteFilePermanently(ids)
-                withContext(Dispatchers.Main) {
-                    showBanner(appContext.getString(R.string.banner_removed_streaming_books, filesToDelete.size))
-                }
             }
         }
     }
@@ -2800,15 +2762,6 @@ open class MainViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun launchPurchaseFlow(activity: android.app.Activity, productId: String = BillingClientWrapper.PRO_LIFETIME_PRODUCT_ID) {
-        Timber.d("Attempting to launch purchase flow for $productId. Pro state is: ${proUpgradeState.value}")
-        billingClientWrapper.launchPurchaseFlow(activity, productId)
-    }
-
-    fun clearBillingError() {
-        billingClientWrapper.clearError()
-    }
-
     fun setSyncEnabled(enabled: Boolean) {
         if (!uiState.value.isProUser) {
             Timber.d("Sync toggle blocked for free user.")
@@ -4594,20 +4547,84 @@ open class MainViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun createShelf(name: String) {
-        if (name.isNotBlank()) {
-            viewModelScope.launch {
+        createShelf(name, emptySet())
+    }
+
+    private fun createShelf(name: String, bookIds: Set<String>) {
+        val trimmedName = name.trim()
+        if (trimmedName.isEmpty() || _internalState.value.isSavingGroup) return
+        if (trimmedName.equals(appContext.getString(R.string.group_ungrouped), ignoreCase = true) || uiState.value.shelves.any {
+                it.type == ShelfType.MANUAL && it.id != "unshelved" && it.name.equals(trimmedName, ignoreCase = true)
+            }) {
+            showBanner(appContext.getString(R.string.error_shelf_exists), isError = true)
+            return
+        }
+        _internalState.update { it.copy(isSavingGroup = true, groupSaveError = null) }
+        viewModelScope.launch {
+            try {
                 val shelfId = UUID.randomUUID().toString()
                 val shelf = com.aryan.reader.data.ShelfEntity(
                     id = shelfId,
-                    name = name,
+                    name = trimmedName,
                     isSmart = false,
                     smartRulesJson = null,
                     createdAt = System.currentTimeMillis(),
                     updatedAt = System.currentTimeMillis()
                 )
-                recentFilesRepository.addShelf(shelf)
+                recentFilesRepository.addShelfWithBooks(shelf, bookIds.toList())
                 dismissCreateShelfDialog()
+                if (bookIds.isNotEmpty()) {
+                    _internalState.update { it.copy(booksPendingGrouping = emptySet(), contextualActionItems = emptySet()) }
+                    showBanner(appContext.getString(R.string.group_documents_added))
+                }
                 syncShelfChangeToFirestore(shelfId)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Timber.e(e, "Failed to create document group")
+                _internalState.update { it.copy(groupSaveError = appContext.getString(R.string.group_save_failed)) }
+                showBanner(appContext.getString(R.string.group_save_failed), isError = true)
+            } finally {
+                _internalState.update { it.copy(isSavingGroup = false) }
+            }
+        }
+    }
+
+    fun openGroupSelection(bookIds: Set<String>) {
+        if (bookIds.isNotEmpty()) {
+            _internalState.update { it.copy(booksPendingGrouping = bookIds, groupSaveError = null) }
+        }
+    }
+
+    fun closeGroupSelection() {
+        if (!_internalState.value.isSavingGroup) {
+            _internalState.update { it.copy(booksPendingGrouping = emptySet()) }
+        }
+    }
+
+    fun createGroupForSelectedBooks(name: String) {
+        val bookIds = _internalState.value.booksPendingGrouping
+        if (bookIds.isNotEmpty()) createShelf(name, bookIds)
+    }
+
+    fun addSelectedBooksToGroup(shelfId: String) {
+        val state = _internalState.value
+        if (state.isSavingGroup || state.booksPendingGrouping.isEmpty()) return
+        val shelf = uiState.value.shelves.find { it.id == shelfId }
+        if (shelf == null || shelf.type != ShelfType.MANUAL || shelf.id == "unshelved") return
+        _internalState.update { it.copy(isSavingGroup = true, groupSaveError = null) }
+        viewModelScope.launch {
+            try {
+                recentFilesRepository.addBooksToShelf(shelfId, state.booksPendingGrouping.toList())
+                syncShelfChangeToFirestore(shelfId)
+                _internalState.update { it.copy(booksPendingGrouping = emptySet(), contextualActionItems = emptySet()) }
+                showBanner(appContext.getString(R.string.group_documents_added))
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Timber.e(e, "Failed to add documents to group")
+                _internalState.update { it.copy(groupSaveError = appContext.getString(R.string.group_save_failed)) }
+                showBanner(appContext.getString(R.string.group_save_failed), isError = true)
+            } finally {
+                _internalState.update { it.copy(isSavingGroup = false) }
             }
         }
     }
@@ -4620,8 +4637,7 @@ open class MainViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun setLibraryScreenPage(page: Int) {
-        val maxLibraryPage = if (BuildConfig.IS_OFFLINE) 2 else 3
-        val sanitizedPage = page.coerceIn(0, maxLibraryPage)
+        val sanitizedPage = page.coerceIn(0, 2)
         if (_internalState.value.libraryScreenStartPage == sanitizedPage) return
         _internalState.update {
             it.copy(libraryScreenStartPage = sanitizedPage)
@@ -4653,12 +4669,20 @@ open class MainViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun renameShelf(shelfId: String, newName: String) {
-        if (shelfId.isBlank() || newName.isBlank()) {
+        val trimmedName = newName.trim()
+        if (shelfId.isBlank() || trimmedName.isEmpty()) {
             dismissRenameShelfDialog()
             return
         }
+        if (trimmedName.equals(appContext.getString(R.string.group_ungrouped), ignoreCase = true) || uiState.value.shelves.any {
+                it.id != shelfId && it.id != "unshelved" && it.type == ShelfType.MANUAL &&
+                    it.name.equals(trimmedName, ignoreCase = true)
+            }) {
+            showBanner(appContext.getString(R.string.error_shelf_exists), isError = true)
+            return
+        }
         viewModelScope.launch {
-            recentFilesRepository.renameShelf(shelfId, newName)
+            recentFilesRepository.renameShelf(shelfId, trimmedName)
             syncShelfChangeToFirestore(shelfId)
             _internalState.update { it.copy(viewingShelfId = shelfId) }
             persistLibraryLandingState()
@@ -5214,10 +5238,47 @@ open class MainViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun setAppBackgroundUri(uri: String?) {
+        backgroundImportJob?.cancel()
+        if (uri == null) {
+            applyAppBackgroundUri(null)
+            return
+        }
+        backgroundImportJob = viewModelScope.launch {
+            val backgroundDir = File(appContext.filesDir, "backgrounds")
+            val destination = File(backgroundDir, "${UUID.randomUUID()}.img")
+            var saved = false
+            try {
+                withContext(Dispatchers.IO) {
+                    check(backgroundDir.isDirectory || backgroundDir.mkdirs())
+                    appContext.contentResolver.openInputStream(uri.toUri()).use { input ->
+                        requireNotNull(input) { "Background image is unavailable" }
+                        destination.outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+                applyAppBackgroundUri(destination.toUri().toString())
+                saved = true
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Timber.e(e, "Failed to import background image")
+                showBanner(appContext.getString(R.string.background_import_failed), isError = true)
+            } finally {
+                if (!saved) destination.delete()
+            }
+        }
+    }
+
+    private fun applyAppBackgroundUri(uri: String?) {
+        val oldUri = _internalState.value.appBackgroundUri?.toUri()
         _internalState.update { it.copy(appBackgroundUri = uri) }
         prefs.edit {
             if (uri.isNullOrBlank()) remove(KEY_APP_BACKGROUND_URI)
             else putString(KEY_APP_BACKGROUND_URI, uri)
+        }
+        if (oldUri?.scheme == "file" && oldUri.toString() != uri) {
+            val oldFile = oldUri.path?.let { File(it) }
+            if (oldFile?.parentFile == File(appContext.filesDir, "backgrounds")) {
+                oldFile.delete()
+            }
         }
     }
 
